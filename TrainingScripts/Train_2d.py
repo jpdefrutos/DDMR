@@ -14,7 +14,7 @@ from datetime import datetime
 import DeepDeformationMapRegistration.utils.constants as C
 from DeepDeformationMapRegistration.data_generator import DataGeneratorManager2D
 from DeepDeformationMapRegistration.utils.misc import try_mkdir
-from DeepDeformationMapRegistration.losses import HausdorffDistance
+from DeepDeformationMapRegistration.losses import HausdorffDistanceErosion
 
 
 os.environ['CUDA_DEVICE_ORDER'] = C.DEV_ORDER
@@ -52,7 +52,7 @@ vxm_model = vxm.networks.VxmDense(inshape=in_shape, nb_unet_features=nb_features
 
 # Losses and loss weights
 def comb_loss(y_true, y_pred):
-    return 1e-3 * HausdorffDistance(ndim=2, nerosion=2).loss(y_true, y_pred) + vxm.losses.Dice().loss(y_true, y_pred)
+    return 1e-3 * HausdorffDistanceErosion(ndim=2, nerosion=2).loss(y_true, y_pred) + vxm.losses.Dice().loss(y_true, y_pred)
 
 
 losses = [comb_loss, vxm.losses.Grad('l2').loss]

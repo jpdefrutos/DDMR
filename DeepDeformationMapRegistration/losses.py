@@ -1,19 +1,19 @@
-import os, sys
-currentdir = os.path.dirname(os.path.realpath(__file__))
-parentdir = os.path.dirname(currentdir)
-sys.path.append(parentdir)  # PYTHON > 3.3 does not allow relative referencing
-
-PYCHARM_EXEC = os.getenv('PYCHARM_EXEC') == 'True'
-
 import tensorflow as tf
 from scipy.ndimage import generate_binary_structure
 
-import DeepDeformationMapRegistration.utils.constants as C
 from DeepDeformationMapRegistration.utils.operators import soft_threshold
 
 
-class HausdorffDistance:
+class HausdorffDistanceErosion:
     def __init__(self, ndim=3, nerosion=10):
+        """
+        Approximation of the Hausdorff distance based on erosion operations based on the work done by Karimi D., et al.
+            Karimi D., et al., "Reducing the Hausdorff Distance in Medical Image Segmentation with Convolutional Neural
+            Networks". IEEE Transactions on Medical Imaging, 39, 2020. DOI 10.1109/TMI.2019.2930068
+
+        :param ndim: Dimensionality of the images
+        :param nerosion: Number of erosion steps. Defaults to 10.
+        """
         self.ndims = ndim
         self.conv = getattr(tf.nn, 'conv%dd' % self.ndims)
         self.nerosions = nerosion
@@ -37,11 +37,12 @@ class HausdorffDistance:
                 er = self._erode(diff, kernel)
             ret += tf.reduce_sum(tf.multiply(er, tf.pow(i + 1., alpha)))
 
-        return tf.multiply(C.IMG_SIZE ** -self.ndims, ret)  # Divide by the image size
+        img_vol = tf.cast(tf.reduce_prod(y_true.shape), tf.float32)
+        return tf.divide(ret, img_vol)  # Divide by the image size
 
     def loss(self, y_true, y_pred):
         batched_dist = tf.map_fn(lambda x: self._erosion_distance_single(x[0], x[1]), (y_true, y_pred),
                                  dtype=tf.float32)
 
-        return batched_dist  # tf.reduce_mean(batched_dist)
+        return batched_dist
 
