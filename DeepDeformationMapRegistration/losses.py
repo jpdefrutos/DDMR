@@ -26,7 +26,7 @@ class HausdorffDistance:
         diff = tf.math.pow(y_pred - y_true, 2)
         alpha = 2.
 
-        norm = 1 / self.ndims * 2 + 1
+        norm = 1 / (self.ndims * 2 + 1)
         kernel = generate_binary_structure(self.ndims, 1).astype(int) * norm
         kernel = tf.constant(kernel, tf.float32)
         kernel = tf.expand_dims(tf.expand_dims(kernel, -1), -1)
