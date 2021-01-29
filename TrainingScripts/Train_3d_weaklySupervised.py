@@ -54,15 +54,15 @@ def dice_loss(y_true, y_pred):
     # Dice().loss returns -Dice score
     return 1 + vxm.losses.Dice().loss(y_true, y_pred)
 
-multiLoss = UncertaintyWeighting(num_loss_fns=3,
+multiLoss = UncertaintyWeighting(num_loss_fns=2,
                                  num_reg_fns=1,
-                                 loss_fns=[HausdorffDistance(3, 5).loss, dice_loss, vxm.losses.NCC().loss],
+                                 loss_fns=[HausdorffDistance(3, 5).loss, dice_loss],
                                  reg_fns=[vxm.losses.Grad('l2').loss],
                                  prior_loss_w=[1., 1., 1.],
                                  prior_reg_w=[0.01],
                                  name='MultiLossLayer')
-loss = multiLoss([vxm_model.inputs[1], vxm_model.inputs[1], fix_img,
-                  vxm_model.references.pred_segm, vxm_model.references.pred_segm, vxm_model.references.pred_img,
+loss = multiLoss([vxm_model.inputs[1], vxm_model.inputs[1],
+                  vxm_model.references.pred_segm, vxm_model.references.pred_segm,
                   grad,
                   vxm_model.references.pos_flow])
 
