@@ -17,7 +17,7 @@ from datetime import datetime
 import DeepDeformationMapRegistration.utils.constants as C
 from DeepDeformationMapRegistration.data_generator import DataGeneratorManager2D
 from DeepDeformationMapRegistration.utils.misc import try_mkdir
-from DeepDeformationMapRegistration.losses import HausdorffDistance
+from DeepDeformationMapRegistration.losses import HausdorffDistanceErosion
 from DeepDeformationMapRegistration.layers import UncertaintyWeighting
 
 
@@ -66,7 +66,7 @@ def dice_loss(y_true, y_pred):
 #fixed_pred, dm_pred = vxm_model([moving, fixed])
 multiLoss = UncertaintyWeighting(num_loss_fns=2,
                                  num_reg_fns=1,
-                                 loss_fns=[HausdorffDistance(2, 2).loss, dice_loss],
+                                 loss_fns=[HausdorffDistanceErosion(2, 2).loss, dice_loss],
                                  reg_fns=[vxm.losses.Grad('l2').loss],
                                  prior_loss_w=[1., 1.],
                                  prior_reg_w=[0.01],
