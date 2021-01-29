@@ -17,7 +17,7 @@ import DeepDeformationMapRegistration.utils.constants as C
 from DeepDeformationMapRegistration.data_generator import DataGeneratorManager
 from DeepDeformationMapRegistration.utils.misc import try_mkdir
 from DeepDeformationMapRegistration.networks import WeaklySupervised
-from DeepDeformationMapRegistration.losses import HausdorffDistanceErosion
+from DeepDeformationMapRegistration.losses import HausdorffDistance
 from DeepDeformationMapRegistration.layers import UncertaintyWeighting
 
 
@@ -49,24 +49,24 @@ vxm_model = WeaklySupervised(inshape=in_shape, all_labels=[1], nb_unet_features=
 # Losses and loss weights
 
 grad = tf.keras.Input(shape=(*in_shape, 3), name='multiLoss_grad_input', dtype=tf.float32)
-# fix_img = tf.keras.Input(shape=(*in_shape, 1), name='multiLoss_fix_img_input', dtype=tf.float32)
+fix_img = tf.keras.Input(shape=(*in_shape, 1), name='multiLoss_fix_img_input', dtype=tf.float32)
 def dice_loss(y_true, y_pred):
     # Dice().loss returns -Dice score
     return 1 + vxm.losses.Dice().loss(y_true, y_pred)
 
-multiLoss = UncertaintyWeighting(num_loss_fns=3,
+multiLoss = UncertaintyWeighting(num_loss_fns=2,
                                  num_reg_fns=1,
-                                 loss_fns=[HausdorffDistanceErosion(3, 5).loss, dice_loss, vxm.losses.NCC().loss],
+                                 loss_fns=[HausdorffDistance(3, 5).loss, dice_loss],
                                  reg_fns=[vxm.losses.Grad('l2').loss],
-                                 prior_loss_w=[1., 1.],
+                                 prior_loss_w=[1., 1., 1.],
                                  prior_reg_w=[0.01],
                                  name='MultiLossLayer')
-loss = multiLoss([vxm_model.inputs[1], vxm_model.inputs[1], fix_img,
-                  vxm_model.references.pred_segm, vxm_model.references.pred_segm, vxm_model.references.pred_img,
+loss = multiLoss([vxm_model.inputs[1], vxm_model.inputs[1],
+                  vxm_model.references.pred_segm, vxm_model.references.pred_segm,
                   grad,
                   vxm_model.references.pos_flow])
 
-full_model = tf.keras.Model(inputs=vxm_model.inputs + [grad], outputs=vxm_model.outputs + [loss])
+full_model = tf.keras.Model(inputs=vxm_model.inputs + [fix_img, grad], outputs=vxm_model.outputs + [loss])
 
 # Compile the model
 full_model.compile(optimizer=tf.keras.optimizers.Adam(lr=1e-4), loss=None)
