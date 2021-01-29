@@ -10,7 +10,7 @@ import voxelmorph as vxm
 from voxelmorph.tf.modelio import LoadableModel, store_config_args
 
 
-class VxmWeaklySupervised(LoadableModel):
+class WeaklySupervised(LoadableModel):
 
     @store_config_args
     def __init__(self, inshape, all_labels: [list, tuple], nb_unet_features=None, int_steps=5, bidir=False, **kwargs):
@@ -61,3 +61,4 @@ class VxmWeaklySupervised(LoadableModel):
         img_input = tf.keras.Input(shape=mov_img.shape[1:], name='input_img')
         pred_img = vxm.layers.SpatialTransformer(interp_method=interp_method)([img_input, warp_model.output])
         return tf.keras.Model(warp_model.inputs, pred_img).predict([mov_segm, fix_segm, mov_img])
+

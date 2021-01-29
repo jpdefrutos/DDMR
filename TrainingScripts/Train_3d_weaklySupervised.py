@@ -16,7 +16,7 @@ from datetime import datetime
 import DeepDeformationMapRegistration.utils.constants as C
 from DeepDeformationMapRegistration.data_generator import DataGeneratorManager
 from DeepDeformationMapRegistration.utils.misc import try_mkdir
-from DeepDeformationMapRegistration.networks import VxmWeaklySupervised
+from DeepDeformationMapRegistration.networks import WeaklySupervised
 from DeepDeformationMapRegistration.losses import HausdorffDistance
 from DeepDeformationMapRegistration.layers import UncertaintyWeighting
 
@@ -44,7 +44,7 @@ in_shape = train_generator.get_input_shape()[1:-1]
 enc_features = [16, 32, 32, 32, 32, 32]# const.ENCODER_FILTERS
 dec_features = [32, 32, 32, 32, 32, 32, 32, 16, 16]# const.ENCODER_FILTERS[::-1]
 nb_features = [enc_features, dec_features]
-vxm_model = VxmWeaklySupervised(inshape=in_shape, all_labels=[1], nb_unet_features=nb_features, int_steps=5)
+vxm_model = WeaklySupervised(inshape=in_shape, all_labels=[1], nb_unet_features=nb_features, int_steps=5)
 
 # Losses and loss weights
 
