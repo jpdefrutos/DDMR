@@ -1,8 +1,5 @@
 import os
 import errno
-import nibabel as nb
-import numpy as np
-import re
 
 def try_mkdir(dir):
     try:

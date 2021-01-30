@@ -1,10 +1,7 @@
 import os
-import errno
 import nibabel as nb
 import numpy as np
-import re
 import zipfile
-import tensorflow as tf
 
 
 TEMP_UNZIP_PATH = '/mnt/EncryptedData1/Users/javier/ext_datasets/LITS17/temp'
