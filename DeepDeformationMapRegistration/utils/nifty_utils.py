@@ -11,13 +11,14 @@ TEMP_UNZIP_PATH = '/mnt/EncryptedData1/Users/javier/ext_datasets/LITS17/temp'
 NII_EXTENSION = '.nii'
 
 
-def save_nifti(data, save_path):
+def save_nifti(data, save_path, verbose=True):
     data_nifti = nb.Nifti1Image(data, affine=np.eye(4))
 
     data_nifti.header.get_xyzt_units()
     try:
         data_nifti.to_filename(save_path)  # Save as NiBabel file
-        print('Saved {}'.format(save_path))
+        if verbose:
+            print('Saved {}'.format(save_path))
     except ValueError:
         print('Could not save {}'.format(save_path))
 
