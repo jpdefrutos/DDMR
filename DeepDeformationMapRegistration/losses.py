@@ -2,6 +2,7 @@ import tensorflow as tf
 from scipy.ndimage import generate_binary_structure
 
 from DeepDeformationMapRegistration.utils.operators import soft_threshold
+from DeepDeformationMapRegistration.utils.constants import EPS_tf
 
 
 class HausdorffDistanceErosion:
@@ -46,3 +47,25 @@ class HausdorffDistanceErosion:
 
         return batched_dist
 
+
+class NCC:
+    def __init__(self, in_shape, eps=EPS_tf):
+        self.__shape_size = tf.cast(tf.reduce_prod(in_shape), tf.float32)
+        self.__eps = eps
+
+    def ncc(self, y_true, y_pred):
+        f_yt = tf.reshape(y_true, [-1])
+        f_yp = tf.reshape(y_pred, [-1])
+        mean_yt = tf.reduce_mean(f_yt)
+        mean_yp = tf.reduce_mean(f_yp)
+        std_yt = tf.math.reduce_std(f_yt)
+        std_yp = tf.math.reduce_std(f_yp)
+
+        n_f_yt = f_yt - mean_yt
+        n_f_yp = f_yp - mean_yp
+        numerator = tf.reduce_sum(n_f_yt * n_f_yp)
+        denominator = std_yt * std_yp * self.__shape_size + self.__eps
+        return tf.math.divide_no_nan(numerator, denominator)
+
+    def loss(self, y_true, y_pred):
+        return tf.map_fn(lambda x: 1 - self.ncc(x[0], x[1]), (y_true, y_pred), tf.float32)
