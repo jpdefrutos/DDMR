@@ -65,6 +65,17 @@ MAX_FLIPS = 2  # Axes to flip over
 NUM_ROTATIONS = 5
 MAX_WORKERS = 10
 
+# Labels to pass to the input_labels and output_labels parameter of DataGeneratorManager
+DG_LBL_FIX_IMG = H5_FIX_IMG
+DG_LBL_FIX_VESSELS = H5_FIX_VESSELS_MASK
+DG_LBL_FIX_PARENCHYMA = H5_FIX_PARENCHYMA_MASK
+DG_LBL_FIX_TUMOR = H5_FIX_TUMORS_MASK
+DG_LBL_MOV_IMG = H5_MOV_IMG
+DG_LBL_MOV_VESSELS = H5_MOV_VESSELS_MASK
+DG_LBL_MOV_PARENCHYMA = H5_MOV_PARENCHYMA_MASK
+DG_LBL_MOV_TUMOR = H5_MOV_TUMORS_MASK
+DG_LBL_ZERO_GRADS = 'zero_gradients'
+
 # Training constants
 MODEL = 'unet'
 BATCH_NORM = False
@@ -478,10 +489,9 @@ EPS_1_tf = tf.constant(EPS_1)
 # LDDMM
 GAUSSIAN_KERNEL_SHAPE = (8, 8, 8)
 
-# Constants for MultiLoss layer
+# Constants for Unsupervised Learning layer
 PRIOR_W = [1., 1 / 60, 1.]
 MANUAL_W = [1.] * len(PRIOR_W)
 
 REG_PRIOR_W = [1e-3]
 REG_MANUAL_W = [1.] * len(REG_PRIOR_W)
-

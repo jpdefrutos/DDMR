@@ -1,10 +1,3 @@
-import sys, os
-currentdir = os.path.dirname(os.path.realpath(__file__))
-parentdir = os.path.dirname(currentdir)
-sys.path.append(parentdir)  # PYTHON > 3.3 does not allow relative referencing
-
-PYCHARM_EXEC = os.getenv('PYCHARM_EXEC') == 'True'
-
 import numpy as np
 from tensorflow import keras
 import os
@@ -17,9 +10,9 @@ from DeepDeformationMapRegistration.utils.operators import min_max_norm
 
 
 class DataGeneratorManager(keras.utils.Sequence):
-    def __init__(self, dataset_path, batch_size=32, shuffle=True, num_samples=None, validation_split=None, validation_samples=None,
-                 clip_range=[0., 1.], voxelmorph=False, segmentations=False,
-                 seg_labels: dict = {'bg': 0, 'vessels': 1, 'tumour': 2, 'parenchyma': 3}):
+    def __init__(self, dataset_path, batch_size=32, shuffle=True,
+                 num_samples=None, validation_split=None, validation_samples=None, clip_range=[0., 1.],
+                 input_labels=[C.H5_MOV_IMG, C.H5_FIX_IMG], output_labels=[C.H5_FIX_IMG, 'zero_gradient']):
         # Get the list of files
         self.__list_files = self.__get_dataset_files(dataset_path)
         self.__list_files.sort()
@@ -32,9 +25,8 @@ class DataGeneratorManager(keras.utils.Sequence):
 
         self.__validation_samples = validation_samples
 
-        self.__voxelmorph = voxelmorph
-        self.__segmentations = segmentations
-        self.__seg_labels = seg_labels
+        self.__input_labels = input_labels
+        self.__output_labels = output_labels
 
         if num_samples is not None:
             self.__num_samples = self.__total_samples if num_samples > self.__total_samples else num_samples
@@ -93,6 +85,14 @@ class DataGeneratorManager(keras.utils.Sequence):
     def shuffle(self):
         return self.__shuffle
 
+    @property
+    def input_labels(self):
+        return self.__input_labels
+
+    @property
+    def output_labels(self):
+        return self.__output_labels
+
     def get_generator_idxs(self, generator_type):
         if generator_type == 'train':
             return self.train_idxs
@@ -150,18 +150,6 @@ class DataGeneratorManager(keras.utils.Sequence):
         else:
             raise ValueError('Unknown dataset type "{}". Expected "train" or "validation"'.format(type))
 
-    @property
-    def is_voxelmorph(self):
-        return self.__voxelmorph
-
-    @property
-    def give_segmentations(self):
-        return self.__segmentations
-
-    @property
-    def seg_labels(self):
-        return self.__seg_labels
-
 
 class DataGenerator(DataGeneratorManager):
     def __init__(self, GeneratorManager: DataGeneratorManager, dataset_type='train'):
@@ -173,8 +161,6 @@ class DataGenerator(DataGeneratorManager):
         self.__manager = GeneratorManager
         self.__shuffle = GeneratorManager.shuffle
 
-        self.__seg_labels = GeneratorManager.seg_labels
-
         self.__num_samples = len(self.__list_files)
         self.__internal_idxs = np.arange(self.__num_samples)
         # These indices are internal to the generator, they are not the same as the dataset_idxs!!
@@ -184,8 +170,8 @@ class DataGenerator(DataGeneratorManager):
         self.__last_batch = 0
         self.__batches_per_epoch = int(np.floor(len(self.__internal_idxs) / self.__batch_size))
 
-        self.__voxelmorph = GeneratorManager.is_voxelmorph
-        self.__segmentations = GeneratorManager.is_voxelmorph and GeneratorManager.give_segmentations
+        self.__input_labels = GeneratorManager.input_labels
+        self.__output_labels = GeneratorManager.output_labels
 
     @staticmethod
     def __get_dataset_files(search_path):
@@ -228,6 +214,22 @@ class DataGenerator(DataGeneratorManager):
         """
         return self.__batches_per_epoch
 
+    @staticmethod
+    def __build_list(data_dict, labels):
+        ret_list = list()
+        for label in labels:
+            if label in data_dict.keys():
+                if label in [C.DG_LBL_FIX_IMG, C.DG_LBL_MOV_IMG]:
+                    ret_list.append(min_max_norm(data_dict[label]).astype(np.float32))
+                elif label in [C.DG_LBL_FIX_PARENCHYMA, C.DG_LBL_FIX_VESSELS, C.DG_LBL_FIX_TUMOR,
+                               C.DG_LBL_MOV_PARENCHYMA, C.DG_LBL_MOV_VESSELS, C.DG_LBL_MOV_TUMOR]:
+                    aux = data_dict[label]
+                    aux[aux > 0.] = 1.
+                    ret_list.append(aux)
+            elif label == C.DG_LBL_ZERO_GRADS:
+                ret_list.append(np.zeros([data_dict['BATCH_SIZE'], *C.DISP_MAP_SHAPE]))
+        return ret_list
+
     def __getitem__(self, index):
         """
         Generate one batch of data
@@ -236,36 +238,15 @@ class DataGenerator(DataGeneratorManager):
         """
         idxs = self.__internal_idxs[index * self.__batch_size:(index + 1) * self.__batch_size]
 
-        fix_img, mov_img, fix_vessels, mov_vessels, fix_tumour, mov_tumour, disp_map = self.__load_data(idxs)
-
-        try:
-            fix_img = min_max_norm(fix_img).astype(np.float32)
-            mov_img = min_max_norm(mov_img).astype(np.float32)
-        except ValueError:
-            print(idxs, fix_img.shape, mov_img.shape)
-            er_str = 'ERROR:\t[file]:\t{}\t[idx]:\t{}\t[fix_img.shape]:\t{}\t[mov_img.shape]:\t{}\t'.format(self.__list_files[idxs], idxs, fix_img.shape, mov_img.shape)
-            raise ValueError(er_str)
-
-        fix_vessels[fix_vessels > 0.] = self.__seg_labels['vessels']
-        mov_vessels[mov_vessels > 0.] = self.__seg_labels['vessels']
-
-        # fix_tumour[fix_tumour > 0.] = self.__seg_labels['tumour']
-        # mov_tumour[mov_tumour > 0.] = self.__seg_labels['tumour']
+        data_dict = self.__load_data(idxs)
 
         # https://www.tensorflow.org/api_docs/python/tf/keras/Model#fit
         # A generator or keras.utils.Sequence returning (inputs, targets) or (inputs, targets, sample_weights)
         # The second element must match the outputs of the model, in this case (image, displacement map)
-        if self.__voxelmorph:
-            zero_grad = np.zeros([fix_img.shape[0], *C.DISP_MAP_SHAPE])
-            if self.__segmentations:
-                inputs = [mov_vessels, fix_vessels, mov_img, fix_img, zero_grad]
-                outputs = []  #[fix_img, zero_grad]
-            else:
-                inputs = [mov_img, fix_img]
-                outputs = [fix_img, zero_grad]
-            return (inputs, outputs)
-        else:
-            return (fix_img, mov_img, fix_vessels, mov_vessels), # (None, fix_seg, fix_seg, fix_img)
+        inputs = self.__build_list(data_dict, self.__input_labels)
+        outputs = self.__build_list(data_dict, self.__output_labels)
+
+        return (inputs, outputs)
 
     def next_batch(self):
         if self.__last_batch > self.__batches_per_epoch:
@@ -273,6 +254,24 @@ class DataGenerator(DataGeneratorManager):
         batch = self.__getitem__(self.__last_batch)
         self.__last_batch += 1
         return batch
+
+    def __try_load(self, data_file, label, append_array=None):
+        if label in self.__input_labels or label in self.__output_labels:
+            # To avoid extra overhead
+            try:
+                retVal = data_file[label][:]
+            except KeyError:
+                # That particular label is not found in the file. But this should be known by the user by now
+                retVal = None
+
+            if append_array is not None and retVal is not None:
+                return np.append(append_array, [data_file[C.H5_FIX_IMG][:]], axis=0)
+            elif append_array is None:
+                return retVal[np.newaxis, ...]
+            else:
+                return retVal  # None
+        else:
+            return None
 
     def __load_data(self, idx_list):
         """
@@ -283,73 +282,87 @@ class DataGenerator(DataGeneratorManager):
         if isinstance(idx_list, (list, np.ndarray)):
             fix_img = np.empty((0, ) + C.IMG_SHAPE)
             mov_img = np.empty((0, ) + C.IMG_SHAPE)
-            disp_map = np.empty((0, ) + C.DISP_MAP_SHAPE)
 
-            # fix_segm = np.empty((0, ) + const.IMG_SHAPE)
-            # mov_segm = np.empty((0, ) + const.IMG_SHAPE)
+            fix_parench = np.empty((0, ) + C.IMG_SHAPE)
+            mov_parench = np.empty((0, ) + C.IMG_SHAPE)
 
             fix_vessels = np.empty((0, ) + C.IMG_SHAPE)
             mov_vessels = np.empty((0, ) + C.IMG_SHAPE)
+
             fix_tumors = np.empty((0, ) + C.IMG_SHAPE)
             mov_tumors = np.empty((0, ) + C.IMG_SHAPE)
+
+            disp_map = np.empty((0, ) + C.DISP_MAP_SHAPE)
+
             for idx in idx_list:
                 data_file = h5py.File(self.__list_files[idx], 'r')
 
-                fix_img = np.append(fix_img, [data_file[C.H5_FIX_IMG][:]], axis=0)
-                mov_img = np.append(mov_img, [data_file[C.H5_MOV_IMG][:]], axis=0)
+                fix_img = self.__try_load(data_file, C.H5_FIX_IMG, fix_img)
+                mov_img = self.__try_load(data_file, C.H5_MOV_IMG, mov_img)
 
-                # fix_segm = np.append(fix_segm, [data_file[const.H5_FIX_PARENCHYMA_MASK][:]], axis=0)
-                # mov_segm = np.append(mov_segm, [data_file[const.H5_MOV_PARENCHYMA_MASK][:]], axis=0)
+                fix_parench = self.__try_load(data_file, C.H5_FIX_PARENCHYMA_MASK, fix_parench)
+                mov_parench = self.__try_load(data_file, C.H5_MOV_PARENCHYMA_MASK, mov_parench)
 
-                disp_map = np.append(disp_map, [data_file[C.H5_GT_DISP][:]], axis=0)
+                fix_vessels = self.__try_load(data_file, C.H5_FIX_VESSELS_MASK, fix_vessels)
+                mov_vessels = self.__try_load(data_file, C.H5_MOV_VESSELS_MASK, mov_vessels)
 
-                fix_vessels = np.append(fix_vessels, [data_file[C.H5_FIX_VESSELS_MASK][:]], axis=0)
-                mov_vessels = np.append(mov_vessels, [data_file[C.H5_MOV_VESSELS_MASK][:]], axis=0)
-                fix_tumors = np.append(fix_tumors, [data_file[C.H5_FIX_TUMORS_MASK][:]], axis=0)
-                mov_tumors = np.append(mov_tumors, [data_file[C.H5_MOV_TUMORS_MASK][:]], axis=0)
+                fix_tumors = self.__try_load(data_file, C.H5_FIX_TUMORS_MASK, mov_parench)
+                mov_tumors = self.__try_load(data_file, C.H5_MOV_TUMORS_MASK, mov_parench)
+
+                disp_map = self.__try_load(data_file, C.H5_GT_DISP, disp_map)
 
                 data_file.close()
+            batch_size = len(idx_list)
         else:
             data_file = h5py.File(self.__list_files[idx_list], 'r')
 
-            fix_img = np.expand_dims(data_file[C.H5_FIX_IMG][:], 0)
-            mov_img = np.expand_dims(data_file[C.H5_MOV_IMG][:], 0)
+            fix_img = self.__try_load(data_file, C.H5_FIX_IMG)
+            mov_img = self.__try_load(data_file, C.H5_MOV_IMG)
 
-            # fix_segm = np.expand_dims(data_file[const.H5_FIX_PARENCHYMA_MASK][:], 0)
-            # mov_segm = np.expand_dims(data_file[const.H5_MOV_PARENCHYMA_MASK][:], 0)
+            fix_parench = self.__try_load(data_file, C.H5_FIX_PARENCHYMA_MASK)
+            mov_parench = self.__try_load(data_file, C.H5_MOV_PARENCHYMA_MASK)
 
-            fix_vessels = np.expand_dims(data_file[C.H5_FIX_VESSELS_MASK][:], axis=0)
-            mov_vessels = np.expand_dims(data_file[C.H5_MOV_VESSELS_MASK][:], axis=0)
-            fix_tumors = np.expand_dims(data_file[C.H5_FIX_TUMORS_MASK][:], axis=0)
-            mov_tumors = np.expand_dims(data_file[C.H5_MOV_TUMORS_MASK][:], axis=0)
+            fix_vessels = self.__try_load(data_file, C.H5_FIX_VESSELS_MASK)
+            mov_vessels = self.__try_load(data_file, C.H5_MOV_VESSELS_MASK)
 
-            disp_map = np.expand_dims(data_file[C.H5_GT_DISP][:], 0)
+            fix_tumors = self.__try_load(data_file, C.H5_FIX_TUMORS_MASK)
+            mov_tumors = self.__try_load(data_file, C.H5_MOV_TUMORS_MASK)
+
+            disp_map = self.__try_load(data_file, C.H5_GT_DISP)
 
             data_file.close()
+            batch_size = 1
 
-        return fix_img, mov_img, fix_vessels, mov_vessels, fix_tumors, mov_tumors, disp_map
+        data_dict = {C.H5_FIX_IMG: fix_img,
+                     C.H5_FIX_TUMORS_MASK: fix_tumors,
+                     C.H5_FIX_VESSELS_MASK: fix_vessels,
+                     C.H5_FIX_PARENCHYMA_MASK: fix_parench,
+                     C.H5_MOV_IMG: mov_img,
+                     C.H5_MOV_TUMORS_MASK: mov_tumors,
+                     C.H5_MOV_VESSELS_MASK: mov_vessels,
+                     C.H5_MOV_PARENCHYMA_MASK: mov_parench,
+                     C.H5_GT_DISP: disp_map,
+                     'BATCH_SIZE': batch_size
+                     }
 
-    def get_single_sample(self):
-        fix_img, mov_img, fix_segm, mov_segm, _ = self.__load_data(0)
+        return data_dict
+
+    def get_samples(self, num_samples, random=False):
+        if random:
+            idxs = np.random.randint(0, self.__num_samples, num_samples)
+        else:
+            idxs = np.arange(0, num_samples)
+        data_dict = self.__load_data(idxs)
         # return X, y
-        return np.expand_dims(np.concatenate([mov_img, fix_img, mov_segm, mov_segm], axis=-1), axis=0)
-
-    def get_random_sample(self, num_samples):
-        idxs = np.random.randint(0, self.__num_samples, num_samples)
-        fix_img, mov_img, fix_segm, mov_segm, disp_map = self.__load_data(idxs)
-
-        return (fix_img, mov_img, fix_segm, mov_segm, disp_map), [self.__list_files[f] for f in idxs]
+        return self.__build_list(data_dict, self.__input_labels), self.__build_list(data_dict, self.__output_labels)
 
     def get_input_shape(self):
         input_batch, _ = self.__getitem__(0)
-        if self.__voxelmorph:
-            ret_val = list(input_batch[0].shape)
-            ret_val[-1] = 2
-            ret_val = (None, ) + tuple(ret_val[1:])
-        else:
-            ret_val = input_batch.shape
-            ret_val = (None, ) + ret_val[1:]
-        return ret_val # const.BATCH_SHAPE_SEGM
+        data_dict = self.__load_data(0)
+
+        ret_val = data_dict[self.__input_labels[0]].shape
+        ret_val = (None, ) + ret_val[1:]
+        return ret_val  # const.BATCH_SHAPE_SEGM
 
     def who_are_you(self):
         return self.__dataset_type
@@ -361,6 +374,7 @@ class DataGenerator(DataGeneratorManager):
 class DataGeneratorManager2D:
     FIX_IMG_H5 = 'input/1'
     MOV_IMG_H5 = 'input/0'
+
     def __init__(self, h5_file_list, batch_size=32, data_split=0.7, img_size=None,
                  fix_img_tag=FIX_IMG_H5, mov_img_tag=MOV_IMG_H5, multi_loss=False):
         self.__file_list = h5_file_list #h5py.File(h5_file, 'r')
