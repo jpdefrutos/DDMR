@@ -15,6 +15,7 @@ from datetime import datetime
 
 import DeepDeformationMapRegistration.utils.constants as C
 from DeepDeformationMapRegistration.data_generator import DataGeneratorManager
+from DeepDeformationMapRegistration.losses import NCC
 from DeepDeformationMapRegistration.utils.misc import try_mkdir
 
 
@@ -44,19 +45,14 @@ vxm_model = vxm.networks.VxmDense(inshape=in_shape, nb_unet_features=nb_features
 
 
 # Losses and loss weights
-
-def comb_loss(y_true, y_pred):
-    return vxm.losses.MSE().loss(y_true, y_pred) + vxm.losses.NCC().loss(y_true, y_pred)
-
-
-losses = [comb_loss, vxm.losses.Grad('l2').loss]
+losses = [NCC(in_shape).loss, vxm.losses.Grad('l2').loss]
 loss_weights = [1., 0.01]
 
 # Compile the model
 vxm_model.compile(optimizer=tf.keras.optimizers.Adam(lr=1e-4), loss=losses, loss_weights=loss_weights)
 
 # Train
-output_folder = os.path.join('train_3d_mse_ncc_grad_'+datetime.now().strftime("%H%M%S-%d%m%Y"))
+output_folder = os.path.join('TrainingScripts/TrainOutput/baseline_LITS_NCC_'+datetime.now().strftime("%H%M%S-%d%m%Y"))
 try_mkdir(output_folder)
 try_mkdir(os.path.join(output_folder, 'checkpoints'))
 try_mkdir(os.path.join(output_folder, 'tensorboard'))

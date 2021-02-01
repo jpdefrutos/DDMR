@@ -33,7 +33,9 @@ C.EPOCHS = 10000
 # Build data generator
 
 data_generator = DataGeneratorManager(C.TRAINING_DATASET, C.BATCH_SIZE, True, C.LIMIT_NUM_SAMPLES,
-                                      1 - C.TRAINING_PERC, voxelmorph=True, segmentations=True)
+                                      1 - C.TRAINING_PERC,
+                                      input_labels=[C.DG_LBL_MOV_VESSELS, C.DG_LBL_FIX_VESSELS, C.DG_LBL_MOV_IMG, C.DG_LBL_ZERO_GRADS],
+                                      output_labels=[])
 
 train_generator = data_generator.get_generator('train')
 validation_generator = data_generator.get_generator('validation')
@@ -72,7 +74,7 @@ full_model = tf.keras.Model(inputs=vxm_model.inputs + [grad], outputs=vxm_model.
 full_model.compile(optimizer=tf.keras.optimizers.Adam(lr=1e-4), loss=None)
 
 # Train
-output_folder = os.path.join('train_3d_multiloss_segm_haus_dice_ncc_grad_'+datetime.now().strftime("%H%M%S-%d%m%Y"))
+output_folder = os.path.join('TrainingScripts/TrainOutput/weaklysupervised_DCTHLN_UW_haus_dice_'+datetime.now().strftime("%H%M%S-%d%m%Y"))
 try_mkdir(output_folder)
 try_mkdir(os.path.join(output_folder, 'checkpoints'))
 try_mkdir(os.path.join(output_folder, 'tensorboard'))
