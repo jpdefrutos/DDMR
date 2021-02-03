@@ -6,7 +6,7 @@ from DeepDeformationMapRegistration.utils.constants import EPS_tf
 
 
 class HausdorffDistanceErosion:
-    def __init__(self, ndim=3, nerosion=10):
+    def __init__(self, ndim=3, nerosion=10, value_per_channel=False):
         """
         Approximation of the Hausdorff distance based on erosion operations based on the work done by Karimi D., et al.
             Karimi D., et al., "Reducing the Hausdorff Distance in Medical Image Segmentation with Convolutional Neural
@@ -14,14 +14,23 @@ class HausdorffDistanceErosion:
 
         :param ndim: Dimensionality of the images
         :param nerosion: Number of erosion steps. Defaults to 10.
+        :param value_per_channel: Return an array with the HD distance computed on each channel independently or the sum
         """
         self.ndims = ndim
         self.conv = getattr(tf.nn, 'conv%dd' % self.ndims)
         self.nerosions = nerosion
+        self.sum_range = tf.range(0, self.ndims) if value_per_channel else None
 
     def _erode(self, in_tensor, kernel):
         out = 1. - tf.squeeze(self.conv(tf.expand_dims(1. - in_tensor, 0), kernel, [1] * (self.ndims + 2), 'SAME'), axis=0)
         return soft_threshold(out, 0.5, name='soft_thresholding')
+
+    def _erode_per_channel(self, in_tensor, kernel):
+        # In the lambda function we add a fictitious channel and then remove it, so the final shape is [1, H, W, D]
+        er_tensor = tf.map_fn(lambda tens: tf.squeeze(self._erode(tf.expand_dims(tens, -1), kernel)),
+                         tf.transpose(in_tensor, [3, 0, 1, 2]), tf.float32)  # Iterate along the channel dimension (3)
+
+        return tf.transpose(er_tensor, [1, 2, 3, 0])  # move the channels back to the end
 
     def _erosion_distance_single(self, y_true, y_pred):
         diff = tf.math.pow(y_pred - y_true, 2)
@@ -30,15 +39,15 @@ class HausdorffDistanceErosion:
         norm = 1 / (self.ndims * 2 + 1)
         kernel = generate_binary_structure(self.ndims, 1).astype(int) * norm
         kernel = tf.constant(kernel, tf.float32)
-        kernel = tf.expand_dims(tf.expand_dims(kernel, -1), -1)
+        kernel = tf.expand_dims(tf.expand_dims(kernel, -1), -1)   # [H, W, D, C_in, C_out]
 
         ret = 0.
         for i in range(self.nerosions):
             for j in range(i + 1):
-                er = self._erode(diff, kernel)
-            ret += tf.reduce_sum(tf.multiply(er, tf.pow(i + 1., alpha)))
+                er = self._erode_per_channel(diff, kernel)
+            ret += tf.reduce_sum(tf.multiply(er, tf.pow(i + 1., alpha)), self.sum_range)
 
-        img_vol = tf.cast(tf.reduce_prod(y_true.shape), tf.float32)
+        img_vol = tf.cast(tf.reduce_prod(tf.shape(y_true)[:-1]), tf.float32)  # Volume of each channel
         return tf.divide(ret, img_vol)  # Divide by the image size
 
     def loss(self, y_true, y_pred):
