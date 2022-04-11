@@ -1,5 +1,7 @@
 import tensorflow as tf
 import tensorflow.keras.backend as K
+import logging
+import numpy as np
 
 
 class RollingAverageWeighting(tf.keras.callbacks.Callback):
@@ -43,3 +45,16 @@ class RollingAverageWeighting(tf.keras.callbacks.Callback):
         for name, val in zip(self.loss_weights.keys(), new_weights):
             out_str += '{}: {:7.2f}\t'.format(name, val)
         print('WEIGHTS UPDATE: ' + out_str)
+
+
+class UncertaintyWeightingRollingAverageCallback(tf.keras.callbacks.Callback):
+    def __init__(self, method, epoch_update):
+        super(UncertaintyWeightingRollingAverageCallback, self).__init__()
+        self.method = method
+        self.epoch_update = epoch_update
+
+    def on_epoch_end(self, epoch, logs=None):
+        if epoch > self.epoch_update:
+            self.method()
+            print('Calling method: '+self.method.__name__)
+

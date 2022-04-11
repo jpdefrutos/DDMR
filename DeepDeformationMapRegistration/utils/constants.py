@@ -52,6 +52,8 @@ H5_MOV_TUMORS_MASK = 'input/{}'.format(MOVING_TUMORS_MASK)
 H5_FIX_TUMORS_MASK = 'input/{}'.format(FIXED_TUMORS_MASK)
 H5_FIX_SEGMENTATIONS = 'input/{}'.format(FIXED_SEGMENTATIONS)
 H5_MOV_SEGMENTATIONS = 'input/{}'.format(MOVING_SEGMENTATIONS)
+H5_FIX_CENTROID = 'input/fix_centroid'
+H5_MOV_CENTROID = 'input/mov_centroid'
 
 H5_GT_DISP = 'output/{}'.format(DISP_MAP_GT)
 H5_GT_IMG = 'output/{}'.format(PRED_IMG_GT)
@@ -64,6 +66,7 @@ MAX_ANGLE = 45.0  # degrees
 MAX_FLIPS = 2  # Axes to flip over
 NUM_ROTATIONS = 5
 MAX_WORKERS = 10
+DEG_TO_RAD = np.pi/180.
 
 # Labels to pass to the input_labels and output_labels parameter of DataGeneratorManager
 DG_LBL_FIX_IMG = H5_FIX_IMG
@@ -75,6 +78,8 @@ DG_LBL_MOV_VESSELS = H5_MOV_VESSELS_MASK
 DG_LBL_MOV_PARENCHYMA = H5_MOV_PARENCHYMA_MASK
 DG_LBL_MOV_TUMOR = H5_MOV_TUMORS_MASK
 DG_LBL_ZERO_GRADS = 'zero_gradients'
+DG_LBL_FIX_CENTROID = H5_FIX_CENTROID
+DG_LBL_MOV_CENTROID = H5_MOV_CENTROID
 
 # Training constants
 MODEL = 'unet'
@@ -91,6 +96,8 @@ DATA_FORMAT = 'channels_last'  # or 'channels_fist'
 DATA_DIR = './data'
 MODEL_CHECKPOINT = './model_checkpoint'
 BATCH_SIZE = 8
+ACCUM_GRADIENT_STEP = 1
+EARLY_STOP_PATIENCE = 30  # Weights are updated every ACCUM_GRADIENT_STEPth step
 EPOCHS = 100
 SAVE_EPOCH = EPOCHS // 10  # Epoch when to save the model
 VERBOSE_EPOCH = EPOCHS // 10
@@ -99,7 +106,6 @@ VALIDATION_ERR_LIMIT_COUNTER = 10  # Number of successive times the validation e
 VALIDATION_ERR_LIMIT_COUNTER_BACKUP = 10
 THRESHOLD = 0.5  # Threshold to select the centerline in the interpolated images
 RESTORE_TRAINING = True  # look for previously saved models to resume training
-EARLY_STOP_PATIENCE = 10
 LOG_FIELD_NAMES = ['time', 'epoch', 'step',
                    'training_loss_mean', 'training_loss_std',
                    'training_loss1_mean', 'training_loss1_std',
@@ -362,10 +368,13 @@ COORDS_GRID = CoordinatesGrid()
 class VisualizationParameters:
     def __init__(self):
         self.__scale = None  # See https://matplotlib.org/3.1.1/api/_as_gen/matplotlib.axes.Axes.quiver.html
-        self.__spacing = 5
+        self.__spacing = 15
 
     def set_spacing(self, img_shape: tf.TensorShape):
-        self.__spacing = int(5 * np.log(img_shape[W]))
+        if isinstance(img_shape, tf.TensorShape):
+            self.__spacing = int(5 * np.log(img_shape[W]))
+        else:
+            self.__spacing = img_shape
 
     @property
     def spacing(self):
@@ -495,3 +504,19 @@ MANUAL_W = [1.] * len(PRIOR_W)
 
 REG_PRIOR_W = [1e-3]
 REG_MANUAL_W = [1.] * len(REG_PRIOR_W)
+
+# Constants for augmentation layer
+# .../T1/training/zoom_factors.csv contain the scale factors of all the training samples from isotropic to 128x128x128
+#   The augmentation values will be scaled using the average+std
+IXI_DATASET_iso_to_cubic_scales = np.asarray([0.655491 + 0.039223, 0.496783 + 0.029349, 0.499691 + 0.028155])
+MAX_AUG_DISP_ISOT = 30
+MAX_AUG_DEF_ISOT = 6
+MAX_AUG_DISP = np.max(MAX_AUG_DISP_ISOT * IXI_DATASET_iso_to_cubic_scales)  # Scaled displacements
+MAX_AUG_DEF = np.max(MAX_AUG_DEF_ISOT * IXI_DATASET_iso_to_cubic_scales)  # Scaled deformations
+MAX_AUG_ANGLE = np.max([np.arctan(np.tan(10*np.pi/180) * IXI_DATASET_iso_to_cubic_scales[1] / IXI_DATASET_iso_to_cubic_scales[0]) * 180 / np.pi,
+                        np.arctan(np.tan(10*np.pi/180) * IXI_DATASET_iso_to_cubic_scales[2] / IXI_DATASET_iso_to_cubic_scales[1]) * 180 / np.pi,
+                        np.arctan(np.tan(10*np.pi/180) * IXI_DATASET_iso_to_cubic_scales[2] / IXI_DATASET_iso_to_cubic_scales[0]) * 180 / np.pi])  # Scaled angles
+GAMMA_AUGMENTATION = False
+BRIGHTNESS_AUGMENTATION = False
+NUM_CONTROL_PTS_AUG = 10
+NUM_AUGMENTATIONS = 1

@@ -1,5 +1,5 @@
-# import matplotlib
-# matplotlib.use('TkAgg')
+import matplotlib
+#matplotlib.use('TkAgg')
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.colors as mcolors
@@ -8,7 +8,7 @@ from matplotlib import cm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import tensorflow as tf
 import numpy as np
-import pyVesselRegistration_constants as const
+import DeepDeformationMapRegistration.utils.constants as C
 from skimage.exposure import rescale_intensity
 import scipy.misc as scpmisc
 import os
@@ -175,11 +175,11 @@ def plot_training(list_imgs: [np.ndarray], affine_transf=True, filename='img', f
         fig.clear()
         plt.figure(fig.number)
     else:
-        fig = plt.figure(dpi=const.DPI)
+        fig = plt.figure(dpi=C.DPI)
 
     ax_fix = fig.add_subplot(231)
     im_fix = ax_fix.imshow(list_imgs[0][:, :, 0])
-    ax_fix.set_title('Fix image', fontsize=const.FONT_SIZE)
+    ax_fix.set_title('Fix image', fontsize=C.FONT_SIZE)
     ax_fix.tick_params(axis='both',
                        which='both',
                        bottom=False,
@@ -188,7 +188,7 @@ def plot_training(list_imgs: [np.ndarray], affine_transf=True, filename='img', f
                        labelbottom=False)
     ax_mov = fig.add_subplot(232)
     im_mov = ax_mov.imshow(list_imgs[1][:, :, 0])
-    ax_mov.set_title('Moving image', fontsize=const.FONT_SIZE)
+    ax_mov.set_title('Moving image', fontsize=C.FONT_SIZE)
     ax_mov.tick_params(axis='both',
                        which='both',
                        bottom=False,
@@ -198,7 +198,7 @@ def plot_training(list_imgs: [np.ndarray], affine_transf=True, filename='img', f
 
     ax_pred_im = fig.add_subplot(233)
     im_pred_im = ax_pred_im.imshow(list_imgs[2][:, :, 0])
-    ax_pred_im.set_title('Prediction', fontsize=const.FONT_SIZE)
+    ax_pred_im.set_title('Prediction', fontsize=C.FONT_SIZE)
     ax_pred_im.tick_params(axis='both',
                        which='both',
                        bottom=False,
@@ -228,8 +228,8 @@ def plot_training(list_imgs: [np.ndarray], affine_transf=True, filename='img', f
     else:
         cx, cy, dx, dy, s = _prepare_quiver_map(list_imgs[3])
         im_pred_disp = ax_pred_disp.imshow(s, interpolation='none', aspect='equal')
-        ax_pred_disp.quiver(cx, cy, dx, dy, scale=const.QUIVER_PARAMS.arrow_scale)
-        ax_pred_disp.set_title('Pred disp map', fontsize=const.FONT_SIZE)
+        ax_pred_disp.quiver(cx, cy, dx, dy, scale=C.QUIVER_PARAMS.arrow_scale)
+        ax_pred_disp.set_title('Pred disp map', fontsize=C.FONT_SIZE)
     ax_pred_disp.tick_params(axis='both',
                                which='both',
                                bottom=False,
@@ -259,8 +259,8 @@ def plot_training(list_imgs: [np.ndarray], affine_transf=True, filename='img', f
     else:
         cx, cy, dx, dy, s = _prepare_quiver_map(list_imgs[4])
         im_gt_disp = ax_gt_disp.imshow(s, interpolation='none', aspect='equal')
-        ax_gt_disp.quiver(cx, cy, dx, dy, scale=const.QUIVER_PARAMS.arrow_scale)
-        ax_gt_disp.set_title('GT disp map', fontsize=const.FONT_SIZE)
+        ax_gt_disp.quiver(cx, cy, dx, dy, scale=C.QUIVER_PARAMS.arrow_scale)
+        ax_gt_disp.set_title('GT disp map', fontsize=C.FONT_SIZE)
     ax_gt_disp.tick_params(axis='both',
                        which='both',
                        bottom=False,
@@ -276,7 +276,7 @@ def plot_training(list_imgs: [np.ndarray], affine_transf=True, filename='img', f
 
     if filename is not None:
         plt.savefig(filename, format='png')  # Call before show
-    if not const.REMOTE:
+    if not C.REMOTE:
         plt.show()
     else:
         plt.close()
@@ -288,7 +288,7 @@ def save_centreline_img(img, title, filename, fig=None):
         fig.clear()
         plt.figure(fig.number)
     else:
-        fig = plt.figure(dpi=const.DPI)
+        fig = plt.figure(dpi=C.DPI)
 
     dim = len(img.shape[:-1])
 
@@ -321,19 +321,19 @@ def save_centreline_img(img, title, filename, fig=None):
     plt.close()
 
 
-def save_disp_map_img(disp_map, title, filename, affine_transf=False, fig=None):
+def save_disp_map_img(disp_map, title, filename, affine_transf=False, fig=None, show=False):
     if fig is not None:
         fig.clear()
         plt.figure(fig.number)
     else:
-        fig = plt.figure(dpi=const.DPI)
-
+        fig = plt.figure(dpi=C.DPI)
+    dim_h, dim_w, dim_d = disp_map.shape[1:-1]
     dim = disp_map.shape[-1]
 
     if dim == 2:
         ax_x = fig.add_subplot(131)
         ax_x.set_title('H displacement')
-        im_x = ax_x.imshow(disp_map[..., const.H_DISP])
+        im_x = ax_x.imshow(disp_map[..., C.H_DISP])
         ax_x.tick_params(axis='both',
                        which='both',
                        bottom=False,
@@ -344,7 +344,7 @@ def save_disp_map_img(disp_map, title, filename, affine_transf=False, fig=None):
 
         ax_y = fig.add_subplot(132)
         ax_y.set_title('W displacement')
-        im_y = ax_y.imshow(disp_map[..., const.W_DISP])
+        im_y = ax_y.imshow(disp_map[..., C.W_DISP])
         ax_y.tick_params(axis='both',
                          which='both',
                          bottom=False,
@@ -373,8 +373,8 @@ def save_disp_map_img(disp_map, title, filename, affine_transf=False, fig=None):
         else:
             c, d, s = _prepare_quiver_map(disp_map, dim=dim)
             im = ax.imshow(s, interpolation='none', aspect='equal')
-            ax.quiver(c[const.H_DISP], c[const.W_DISP], d[const.H_DISP], d[const.W_DISP],
-                      scale=const.QUIVER_PARAMS.arrow_scale)
+            ax.quiver(c[C.H_DISP], c[C.W_DISP], d[C.H_DISP], d[C.W_DISP],
+                      scale=C.QUIVER_PARAMS.arrow_scale)
             cb = _set_colorbar(fig, ax, im, False)
             ax.set_title('Displacement map')
         ax.tick_params(axis='both',
@@ -387,9 +387,8 @@ def save_disp_map_img(disp_map, title, filename, affine_transf=False, fig=None):
     else:
         ax = fig.add_subplot(111, projection='3d')
         c, d, s = _prepare_quiver_map(disp_map[0, ...], dim=dim)
-        ax.quiver(c[const.H_DISP], c[const.W_DISP], c[const.D_DISP], d[const.H_DISP], d[const.W_DISP], d[const.D_DISP],
-                  norm=True)
-        _square_3d_plot(np.arange(0, 63), np.arange(0, 63), np.arange(0, 63), ax)
+        ax.quiver(c[C.H_DISP], c[C.W_DISP], c[C.D_DISP], d[C.H_DISP], d[C.W_DISP], d[C.D_DISP])
+        _square_3d_plot(np.arange(0, dim_h-1), np.arange(0, dim_w-1), np.arange(0, dim_d-1), ax)
         fig.suptitle('Displacement map')
         ax.tick_params(axis='both',  # Same parameters as in 2D https://matplotlib.org/api/_as_gen/mpl_toolkits.mplot3d.axes3d.Axes3D.html
                        which='both',
@@ -397,10 +396,14 @@ def save_disp_map_img(disp_map, title, filename, affine_transf=False, fig=None):
                        left=False,
                        labelleft=False,
                        labelbottom=False)
+        add_axes_arrows_3d(ax, xyz_label=['R', 'A', 'S'])
         fig.suptitle(title)
 
     plt.savefig(filename, format='png')
+    if show:
+        plt.show()
     plt.close()
+    return fig
 
 
 def plot_training_and_validation(list_imgs: [np.ndarray], affine_transf=True, filename='img', fig=None,
@@ -409,16 +412,16 @@ def plot_training_and_validation(list_imgs: [np.ndarray], affine_transf=True, fi
         fig.clear()
         plt.figure(fig.number)
     else:
-        fig = plt.figure(dpi=const.DPI)
+        fig = plt.figure(dpi=C.DPI)
 
     dim = len(list_imgs[0].shape[:-1])
 
     if dim == 2:
         # TRAINING
         ax_input = fig.add_subplot(241)
-        ax_input.set_ylabel(title_first_row, fontsize=const.FONT_SIZE)
+        ax_input.set_ylabel(title_first_row, fontsize=C.FONT_SIZE)
         im_fix = ax_input.imshow(list_imgs[0][:, :, 0])
-        ax_input.set_title('Fix image', fontsize=const.FONT_SIZE)
+        ax_input.set_title('Fix image', fontsize=C.FONT_SIZE)
         ax_input.tick_params(axis='both',
                            which='both',
                            bottom=False,
@@ -427,7 +430,7 @@ def plot_training_and_validation(list_imgs: [np.ndarray], affine_transf=True, fi
                            labelbottom=False)
         ax_mov = fig.add_subplot(242)
         im_mov = ax_mov.imshow(list_imgs[1][:, :, 0])
-        ax_mov.set_title('Moving image', fontsize=const.FONT_SIZE)
+        ax_mov.set_title('Moving image', fontsize=C.FONT_SIZE)
         ax_mov.tick_params(axis='both',
                            which='both',
                            bottom=False,
@@ -437,7 +440,7 @@ def plot_training_and_validation(list_imgs: [np.ndarray], affine_transf=True, fi
 
         ax_pred_im = fig.add_subplot(244)
         im_pred_im = ax_pred_im.imshow(list_imgs[2][:, :, 0])
-        ax_pred_im.set_title('Predicted fix image', fontsize=const.FONT_SIZE)
+        ax_pred_im.set_title('Predicted fix image', fontsize=C.FONT_SIZE)
         ax_pred_im.tick_params(axis='both',
                            which='both',
                            bottom=False,
@@ -467,8 +470,8 @@ def plot_training_and_validation(list_imgs: [np.ndarray], affine_transf=True, fi
         else:
             cx, cy, dx, dy, s = _prepare_quiver_map(list_imgs[3], dim=dim)
             im_pred_disp = ax_pred_disp.imshow(s, interpolation='none', aspect='equal')
-            ax_pred_disp.quiver(cx, cy, dx, dy, scale=const.QUIVER_PARAMS.arrow_scale)
-            ax_pred_disp.set_title('Pred disp map', fontsize=const.FONT_SIZE)
+            ax_pred_disp.quiver(cx, cy, dx, dy, scale=C.QUIVER_PARAMS.arrow_scale)
+            ax_pred_disp.set_title('Pred disp map', fontsize=C.FONT_SIZE)
         ax_pred_disp.tick_params(axis='both',
                                    which='both',
                                    bottom=False,
@@ -478,9 +481,9 @@ def plot_training_and_validation(list_imgs: [np.ndarray], affine_transf=True, fi
 
         # VALIDATION
         axinput_val = fig.add_subplot(245)
-        axinput_val.set_ylabel(title_second_row, fontsize=const.FONT_SIZE)
+        axinput_val.set_ylabel(title_second_row, fontsize=C.FONT_SIZE)
         im_fix_val = axinput_val.imshow(list_imgs[4][:, :, 0])
-        axinput_val.set_title('Fix image', fontsize=const.FONT_SIZE)
+        axinput_val.set_title('Fix image', fontsize=C.FONT_SIZE)
         axinput_val.tick_params(axis='both',
                            which='both',
                            bottom=False,
@@ -489,7 +492,7 @@ def plot_training_and_validation(list_imgs: [np.ndarray], affine_transf=True, fi
                            labelbottom=False)
         ax_mov_val = fig.add_subplot(246)
         im_mov_val = ax_mov_val.imshow(list_imgs[5][:, :, 0])
-        ax_mov_val.set_title('Moving image', fontsize=const.FONT_SIZE)
+        ax_mov_val.set_title('Moving image', fontsize=C.FONT_SIZE)
         ax_mov_val.tick_params(axis='both',
                            which='both',
                            bottom=False,
@@ -499,7 +502,7 @@ def plot_training_and_validation(list_imgs: [np.ndarray], affine_transf=True, fi
 
         ax_pred_im_val = fig.add_subplot(248)
         im_pred_im_val = ax_pred_im_val.imshow(list_imgs[6][:, :, 0])
-        ax_pred_im_val.set_title('Predicted fix image', fontsize=const.FONT_SIZE)
+        ax_pred_im_val.set_title('Predicted fix image', fontsize=C.FONT_SIZE)
         ax_pred_im_val.tick_params(axis='both',
                            which='both',
                            bottom=False,
@@ -529,8 +532,8 @@ def plot_training_and_validation(list_imgs: [np.ndarray], affine_transf=True, fi
         else:
             c, d, s = _prepare_quiver_map(list_imgs[7], dim=dim)
             im_pred_disp_val = ax_pred_disp_val.imshow(s, interpolation='none', aspect='equal')
-            ax_pred_disp_val.quiver(c[0], c[1], d[0], d[1], scale=const.QUIVER_PARAMS.arrow_scale)
-            ax_pred_disp_val.set_title('Pred disp map', fontsize=const.FONT_SIZE)
+            ax_pred_disp_val.quiver(c[0], c[1], d[0], d[1], scale=C.QUIVER_PARAMS.arrow_scale)
+            ax_pred_disp_val.set_title('Pred disp map', fontsize=C.FONT_SIZE)
         ax_pred_disp_val.tick_params(axis='both',
                                    which='both',
                                    bottom=False,
@@ -552,10 +555,10 @@ def plot_training_and_validation(list_imgs: [np.ndarray], affine_transf=True, fi
         # 3D
         # TRAINING
         ax_input = fig.add_subplot(231, projection='3d')
-        ax_input.set_ylabel(title_first_row, fontsize=const.FONT_SIZE)
+        ax_input.set_ylabel(title_first_row, fontsize=C.FONT_SIZE)
         im_fix = ax_input.voxels(list_imgs[0][..., 0] > 0.0, facecolors='red', edgecolors='red', label='Fixed')
         im_mov = ax_input.voxels(list_imgs[1][..., 0] > 0.0, facecolors='blue', edgecolors='blue', label='Moving')
-        ax_input.set_title('Fix image', fontsize=const.FONT_SIZE)
+        ax_input.set_title('Fix image', fontsize=C.FONT_SIZE)
         ax_input.tick_params(axis='both',
                            which='both',
                            bottom=False,
@@ -566,7 +569,7 @@ def plot_training_and_validation(list_imgs: [np.ndarray], affine_transf=True, fi
         ax_pred_im = fig.add_subplot(232, projection='3d')
         im_pred_im = ax_input.voxels(list_imgs[2][..., 0] > 0.0, facecolors='green', edgecolors='green', label='Prediction')
         im_fix = ax_input.voxels(list_imgs[0][..., 0] > 0.0, facecolors='red', edgecolors='red', label='Fixed')
-        ax_pred_im.set_title('Predicted fix image', fontsize=const.FONT_SIZE)
+        ax_pred_im.set_title('Predicted fix image', fontsize=C.FONT_SIZE)
         ax_pred_im.tick_params(axis='both',
                                which='both',
                                bottom=False,
@@ -578,9 +581,9 @@ def plot_training_and_validation(list_imgs: [np.ndarray], affine_transf=True, fi
 
         c, d, s = _prepare_quiver_map(list_imgs[3], dim=dim)
         im_pred_disp = ax_pred_disp.imshow(s, interpolation='none', aspect='equal')
-        ax_pred_disp.quiver(c[const.H_DISP], c[const.W_DISP], c[const.D_DISP],
-                            d[const.H_DISP], d[const.W_DISP], d[const.D_DISP], scale=const.QUIVER_PARAMS.arrow_scale)
-        ax_pred_disp.set_title('Pred disp map', fontsize=const.FONT_SIZE)
+        ax_pred_disp.quiver(c[C.H_DISP], c[C.W_DISP], c[C.D_DISP],
+                            d[C.H_DISP], d[C.W_DISP], d[C.D_DISP], scale=C.QUIVER_PARAMS.arrow_scale)
+        ax_pred_disp.set_title('Pred disp map', fontsize=C.FONT_SIZE)
         ax_pred_disp.tick_params(axis='both',
                                  which='both',
                                  bottom=False,
@@ -590,10 +593,10 @@ def plot_training_and_validation(list_imgs: [np.ndarray], affine_transf=True, fi
 
         # VALIDATION
         axinput_val = fig.add_subplot(234, projection='3d')
-        axinput_val.set_ylabel(title_second_row, fontsize=const.FONT_SIZE)
+        axinput_val.set_ylabel(title_second_row, fontsize=C.FONT_SIZE)
         im_fix_val = ax_input.voxels(list_imgs[4][..., 0] > 0.0, facecolors='red', edgecolors='red', label='Fixed (val)')
         im_mov_val = ax_input.voxels(list_imgs[5][..., 0] > 0.0, facecolors='blue', edgecolors='blue', label='Moving (val)')
-        axinput_val.set_title('Fix image', fontsize=const.FONT_SIZE)
+        axinput_val.set_title('Fix image', fontsize=C.FONT_SIZE)
         axinput_val.tick_params(axis='both',
                                which='both',
                                bottom=False,
@@ -604,7 +607,7 @@ def plot_training_and_validation(list_imgs: [np.ndarray], affine_transf=True, fi
         ax_pred_im_val = fig.add_subplot(235, projection='3d')
         im_pred_im_val = ax_input.voxels(list_imgs[2][..., 0] > 0.0, facecolors='green', edgecolors='green', label='Prediction (val)')
         im_fix_val = ax_input.voxels(list_imgs[0][..., 0] > 0.0, facecolors='red', edgecolors='red', label='Fixed (val)')
-        ax_pred_im_val.set_title('Predicted fix image', fontsize=const.FONT_SIZE)
+        ax_pred_im_val.set_title('Predicted fix image', fontsize=C.FONT_SIZE)
         ax_pred_im_val.tick_params(axis='both',
                                    which='both',
                                    bottom=False,
@@ -615,10 +618,10 @@ def plot_training_and_validation(list_imgs: [np.ndarray], affine_transf=True, fi
         ax_pred_disp_val = fig.add_subplot(236, projection='3d')
         c, d, s = _prepare_quiver_map(list_imgs[7], dim=dim)
         im_pred_disp_val = ax_pred_disp_val.imshow(s, interpolation='none', aspect='equal')
-        ax_pred_disp_val.quiver(c[const.H_DISP], c[const.W_DISP], c[const.D_DISP],
-                                d[const.H_DISP], d[const.W_DISP], d[const.D_DISP],
-                                scale=const.QUIVER_PARAMS.arrow_scale)
-        ax_pred_disp_val.set_title('Pred disp map', fontsize=const.FONT_SIZE)
+        ax_pred_disp_val.quiver(c[C.H_DISP], c[C.W_DISP], c[C.D_DISP],
+                                d[C.H_DISP], d[C.W_DISP], d[C.D_DISP],
+                                scale=C.QUIVER_PARAMS.arrow_scale)
+        ax_pred_disp_val.set_title('Pred disp map', fontsize=C.FONT_SIZE)
         ax_pred_disp_val.tick_params(axis='both',
                                      which='both',
                                      bottom=False,
@@ -628,7 +631,7 @@ def plot_training_and_validation(list_imgs: [np.ndarray], affine_transf=True, fi
 
     if filename is not None:
         plt.savefig(filename, format='png')  # Call before show
-    if not const.REMOTE:
+    if not C.REMOTE:
         plt.show()
     else:
         plt.close()
@@ -644,21 +647,21 @@ def _set_colorbar(fig, ax, im, drawedges=True):
     return im_cb
 
 
-def _prepare_quiver_map(disp_map: np.ndarray, dim=2, spc=const.QUIVER_PARAMS.spacing):
+def _prepare_quiver_map(disp_map: np.ndarray, dim=2, spc=C.QUIVER_PARAMS.spacing):
     if isinstance(disp_map, tf.Tensor):
         if tf.executing_eagerly():
             disp_map = disp_map.numpy()
         else:
             disp_map = disp_map.eval()
-    dx = disp_map[..., const.H_DISP]
-    dy = disp_map[..., const.W_DISP]
+    dx = disp_map[..., C.H_DISP]
+    dy = disp_map[..., C.W_DISP]
     if dim > 2:
-        dz = disp_map[..., const.D_DISP]
+        dz = disp_map[..., C.D_DISP]
 
-    img_size_x = disp_map.shape[const.H_DISP]
-    img_size_y = disp_map.shape[const.W_DISP]
+    img_size_x = disp_map.shape[C.H_DISP]
+    img_size_y = disp_map.shape[C.W_DISP]
     if dim > 2:
-        img_size_z = disp_map.shape[const.D_DISP]
+        img_size_z = disp_map.shape[C.D_DISP]
 
     if dim > 2:
         s = np.sqrt(np.square(dx) + np.square(dy) + np.square(dz))
@@ -728,7 +731,7 @@ def plot_input_data(fix_img, mov_img, img_size=(64, 64), title=None, filename=No
 
     if filename is not None:
         plt.savefig(filename, format='png')  # Call before show
-    if not const.REMOTE:
+    if not C.REMOTE:
         plt.show()
     else:
         plt.close()
@@ -807,29 +810,42 @@ def plot_dataset_3d(img_sets):
     return fig
 
 
-def plot_predictions(fix_img_batch, mov_img_batch, disp_map_batch, pred_img_batch, filename='predictions', fig=None):
+def plot_predictions(fix_img_batch, mov_img_batch, disp_map_batch, pred_img_batch, filename='predictions', fig=None, show=False):
     num_rows = fix_img_batch.shape[0]
-    img_size = fix_img_batch.shape[1:3]
+    img_dim = len(fix_img_batch.shape) - 2
+    img_size = fix_img_batch.shape[1:-1]
     if fig is not None:
         fig.clear()
         plt.figure(fig.number)
-        ax = fig.add_subplot(nrows=num_rows, ncols=4, dpi=const.DPI)
+        ax = fig.add_subplot(nrows=num_rows, ncols=5, figsize=(10, 3*num_rows), dpi=C.DPI)
     else:
-        fig, ax = plt.subplots(nrows=num_rows, ncols=4, dpi=const.DPI)
+        fig, ax = plt.subplots(nrows=num_rows, ncols=5, figsize=(10, 3*num_rows), dpi=C.DPI)
+    if num_rows == 1:
+        ax = ax[np.newaxis, ...]
+
+    if img_dim == 3:    # Extract slices from the images
+        selected_slice = img_size[0] // 2
+        fix_img_batch = fix_img_batch[:, selected_slice, ...]
+        mov_img_batch = mov_img_batch[:, selected_slice, ...]
+        pred_img_batch = pred_img_batch[:, selected_slice, ...]
+        disp_map_batch = disp_map_batch[:, selected_slice, ..., 1:]  # Only the sagittal and longitudinal axes
+        img_size = fix_img_batch.shape[1:-1]
+    elif img_dim != 2:
+        raise ValueError('Images have a bad shape: {}'.format(fix_img_batch.shape))
 
     for row in range(num_rows):
-        fix_img = fix_img_batch[row, :, :, 0]
-        mov_img = mov_img_batch[row, :, :, 0]
-        disp_map = disp_map_batch[row, :, :, :]
-        pred_img = pred_img_batch[row, :, :, 0]
-        ax[row, 0].imshow(fix_img)
+        fix_img = fix_img_batch[row, :, :, 0].transpose()
+        mov_img = mov_img_batch[row, :, :, 0].transpose()
+        disp_map = disp_map_batch[row, :, :, :].transpose((1, 0, 2))
+        pred_img = pred_img_batch[row, :, :, 0].transpose()
+        ax[row, 0].imshow(fix_img, origin='lower')
         ax[row, 0].tick_params(axis='both',
                                which='both',
                                bottom=False,
                                left=False,
                                labelleft=False,
                                labelbottom=False)
-        ax[row, 1].imshow(mov_img)
+        ax[row, 1].imshow(mov_img, origin='lower')
         ax[row, 1].tick_params(axis='both',
                                which='both',
                                bottom=False,
@@ -837,11 +853,12 @@ def plot_predictions(fix_img_batch, mov_img_batch, disp_map_batch, pred_img_batc
                                labelleft=False,
                                labelbottom=False)
 
-        cx, cy, dx, dy, s = _prepare_quiver_map(disp_map)
+        c, d, s = _prepare_quiver_map(disp_map, spc=5)
+        cx, cy = c
+        dx, dy = d
         disp_map_color = _prepare_colormap(disp_map)
-        ax[row, 2].imshow(disp_map_color, interpolation='none', aspect='equal')
-        ax[row, 2].quiver(cx.eval(), cy.eval(), dx.eval(), dy.eval(), units='xy', scale=const.QUIVER_PARAMS.arrow_scale)
-        ax[row, 2].figure.set_size_inches(img_size)
+        ax[row, 2].imshow(disp_map_color, interpolation='none', aspect='equal', origin='lower')
+        ax[row, 2].quiver(cx, cy, dx, dy, units='dots', scale=1)
         ax[row, 2].tick_params(axis='both',
                                which='both',
                                bottom=False,
@@ -849,6 +866,8 @@ def plot_predictions(fix_img_batch, mov_img_batch, disp_map_batch, pred_img_batc
                                labelleft=False,
                                labelbottom=False)
 
+        ax[row, 3].imshow(mov_img, origin='lower')
+        ax[row, 3].quiver(cx, cy, dx, dy, units='dots', scale=1, color='w')
         ax[row, 3].tick_params(axis='both',
                                which='both',
                                bottom=False,
@@ -856,18 +875,26 @@ def plot_predictions(fix_img_batch, mov_img_batch, disp_map_batch, pred_img_batc
                                labelleft=False,
                                labelbottom=False)
 
-    plt.axis('off')
-    ax[0, 0].set_title('Fixed img ($I_f$)', fontsize=const.FONT_SIZE)
-    ax[0, 1].set_title('Moving img ($I_m$)', fontsize=const.FONT_SIZE)
-    ax[0, 2].set_title('Displacement map ($\delta$)', fontsize=const.FONT_SIZE)
-    ax[0, 3].set_title('Updated $I_m$', fontsize=const.FONT_SIZE)
+        ax[row, 4].imshow(pred_img, origin='lower')
+        ax[row, 4].tick_params(axis='both',
+                               which='both',
+                               bottom=False,
+                               left=False,
+                               labelleft=False,
+                               labelbottom=False)
 
+    plt.axis('off')
+    ax[0, 0].set_title('Fixed img ($I_f$)', fontsize=C.FONT_SIZE)
+    ax[0, 1].set_title('Moving img ($I_m$)', fontsize=C.FONT_SIZE)
+    ax[0, 2].set_title('Backwards\ndisp .map ($\delta$)', fontsize=C.FONT_SIZE)
+    ax[0, 3].set_title('Disp. map over $I_m$', fontsize=C.FONT_SIZE)
+    ax[0, 4].set_title('Predicted $I_m$', fontsize=C.FONT_SIZE)
+    plt.tight_layout()
     if filename is not None:
         plt.savefig(filename, format='png')  # Call before show
-    if not const.REMOTE:
+    if show:
         plt.show()
-    else:
-        plt.close()
+    plt.close()
     return fig
 
 
@@ -876,7 +903,7 @@ def inspect_disp_map_generation(fix_img, mov_img, disp_map, filename=None, fig=N
         fig.clear()
         plt.figure(fig.number)
     else:
-        fig = plt.figure(dpi=const.DPI)
+        fig = plt.figure(dpi=C.DPI)
 
     ax0 = fig.add_subplot(221)
     im0 = ax0.imshow(fix_img[..., 0])
@@ -900,7 +927,7 @@ def inspect_disp_map_generation(fix_img, mov_img, disp_map, filename=None, fig=N
     ax2 = fig.add_subplot(223)
     im2 = ax2.imshow(s, interpolation='none', aspect='equal')
 
-    ax2.quiver(cx, cy, dx, dy, scale=const.QUIVER_PARAMS.arrow_scale)
+    ax2.quiver(cx, cy, dx, dy, scale=C.QUIVER_PARAMS.arrow_scale)
     # ax2.figure.set_size_inches(img_size)
     ax2.tick_params(axis='both',
                       which='both',
@@ -912,7 +939,7 @@ def inspect_disp_map_generation(fix_img, mov_img, disp_map, filename=None, fig=N
     ax3 = fig.add_subplot(224)
     dif = fix_img[..., 0] - mov_img[..., 0]
     im3 = ax3.imshow(dif)
-    ax3.quiver(cx, cy, dx, dy, scale=const.QUIVER_PARAMS.arrow_scale)
+    ax3.quiver(cx, cy, dx, dy, scale=C.QUIVER_PARAMS.arrow_scale)
     ax3.tick_params(axis='both',
                     which='both',
                     bottom=False,
@@ -921,10 +948,10 @@ def inspect_disp_map_generation(fix_img, mov_img, disp_map, filename=None, fig=N
                     labelbottom=False)
 
     plt.axis('off')
-    ax0.set_title('Fixed img ($I_f$)', fontsize=const.FONT_SIZE)
-    ax1.set_title('Moving img ($I_m$)', fontsize=const.FONT_SIZE)
-    ax2.set_title('Displacement map', fontsize=const.FONT_SIZE)
-    ax3.set_title('Fix - Mov', fontsize=const.FONT_SIZE)
+    ax0.set_title('Fixed img ($I_f$)', fontsize=C.FONT_SIZE)
+    ax1.set_title('Moving img ($I_m$)', fontsize=C.FONT_SIZE)
+    ax2.set_title('Displacement map', fontsize=C.FONT_SIZE)
+    ax3.set_title('Fix - Mov', fontsize=C.FONT_SIZE)
 
     im0_cb = _set_colorbar(fig, ax0, im0, False)
     im1_cb = _set_colorbar(fig, ax1, im1, False)
@@ -933,7 +960,7 @@ def inspect_disp_map_generation(fix_img, mov_img, disp_map, filename=None, fig=N
 
     if filename is not None:
         plt.savefig(filename, format='png')  # Call before show
-    if not const.REMOTE:
+    if not C.REMOTE:
         plt.show()
     else:
         plt.close()
@@ -950,7 +977,7 @@ def inspect_displacement_grid(ctrl_coords, dense_coords, target_coords, disp_coo
         fig = plt.figure()
 
     ax_grid = fig.add_subplot(231)
-    ax_grid.set_title('Grids', fontsize=const.FONT_SIZE)
+    ax_grid.set_title('Grids', fontsize=C.FONT_SIZE)
     ax_grid.scatter(ctrl_coords[:, 0], ctrl_coords[:, 1], marker='+', c='r', s=20)
     ax_grid.scatter(dense_coords[:, 0], dense_coords[:, 1], marker='.', c='r', s=1)
     ax_grid.tick_params(axis='both',
@@ -966,7 +993,7 @@ def inspect_displacement_grid(ctrl_coords, dense_coords, target_coords, disp_coo
     ax_grid.set_aspect('equal')
 
     ax_disp = fig.add_subplot(232)
-    ax_disp.set_title('Displacement map', fontsize=const.FONT_SIZE)
+    ax_disp.set_title('Displacement map', fontsize=C.FONT_SIZE)
     cx, cy, dx, dy, s = _prepare_quiver_map(disp_map)
     ax_disp.imshow(s, interpolation='none', aspect='equal')
     ax_disp.tick_params(axis='both',
@@ -977,7 +1004,7 @@ def inspect_displacement_grid(ctrl_coords, dense_coords, target_coords, disp_coo
                         labelbottom=False)
 
     ax_mask = fig.add_subplot(233)
-    ax_mask.set_title('Mask', fontsize=const.FONT_SIZE)
+    ax_mask.set_title('Mask', fontsize=C.FONT_SIZE)
     ax_mask.imshow(mask)
     ax_mask.tick_params(axis='both',
                         which='both',
@@ -987,7 +1014,7 @@ def inspect_displacement_grid(ctrl_coords, dense_coords, target_coords, disp_coo
                         labelbottom=False)
 
     ax_fix = fig.add_subplot(234)
-    ax_fix.set_title('Fix image', fontsize=const.FONT_SIZE)
+    ax_fix.set_title('Fix image', fontsize=C.FONT_SIZE)
     ax_fix.imshow(fix_img[..., 0])
     ax_fix.tick_params(axis='both',
                         which='both',
@@ -997,7 +1024,7 @@ def inspect_displacement_grid(ctrl_coords, dense_coords, target_coords, disp_coo
                         labelbottom=False)
 
     ax_mov = fig.add_subplot(235)
-    ax_mov.set_title('Moving image', fontsize=const.FONT_SIZE)
+    ax_mov.set_title('Moving image', fontsize=C.FONT_SIZE)
     ax_mov.imshow(mov_img[..., 0])
     ax_mov.tick_params(axis='both',
                         which='both',
@@ -1007,7 +1034,7 @@ def inspect_displacement_grid(ctrl_coords, dense_coords, target_coords, disp_coo
                         labelbottom=False)
 
     ax_dif = fig.add_subplot(236)
-    ax_dif.set_title('Fix - Moving image', fontsize=const.FONT_SIZE)
+    ax_dif.set_title('Fix - Moving image', fontsize=C.FONT_SIZE)
     ax_dif.imshow(fix_img[..., 0] - mov_img[..., 0], cmap=cmap_bin)
     ax_dif.tick_params(axis='both',
                         which='both',
@@ -1023,7 +1050,7 @@ def inspect_displacement_grid(ctrl_coords, dense_coords, target_coords, disp_coo
 
     if filename is not None:
         plt.savefig(filename, format='png')  # Call before show
-    if not const.REMOTE:
+    if not C.REMOTE:
         plt.show()
 
     return fig
@@ -1037,10 +1064,10 @@ def compare_disp_maps(disp_m_f, disp_f_m, fix_img, mov_img, filename=None, fig=N
         fig = plt.figure()
 
     ax_d_m_f = fig.add_subplot(131)
-    ax_d_m_f.set_title('Disp M->F', fontsize=const.FONT_SIZE)
+    ax_d_m_f.set_title('Disp M->F', fontsize=C.FONT_SIZE)
     cx, cy, dx, dy, s = _prepare_quiver_map(disp_m_f)
     ax_d_m_f.imshow(s, interpolation='none', aspect='equal')
-    ax_d_m_f.quiver(cx, cy, dx, dy, scale=const.QUIVER_PARAMS.arrow_scale)
+    ax_d_m_f.quiver(cx, cy, dx, dy, scale=C.QUIVER_PARAMS.arrow_scale)
     ax_d_m_f.tick_params(axis='both',
                         which='both',
                         bottom=False,
@@ -1049,9 +1076,9 @@ def compare_disp_maps(disp_m_f, disp_f_m, fix_img, mov_img, filename=None, fig=N
                         labelbottom=False)
 
     ax_d_f_m = fig.add_subplot(132)
-    ax_d_f_m.set_title('Disp F->M', fontsize=const.FONT_SIZE)
+    ax_d_f_m.set_title('Disp F->M', fontsize=C.FONT_SIZE)
     cx, cy, dx, dy, s = _prepare_quiver_map(disp_f_m)
-    ax_d_f_m.quiver(cx, cy, dx, dy, scale=const.QUIVER_PARAMS.arrow_scale)
+    ax_d_f_m.quiver(cx, cy, dx, dy, scale=C.QUIVER_PARAMS.arrow_scale)
     ax_d_f_m.imshow(s, interpolation='none', aspect='equal')
     ax_d_f_m.tick_params(axis='both',
                          which='both',
@@ -1061,7 +1088,7 @@ def compare_disp_maps(disp_m_f, disp_f_m, fix_img, mov_img, filename=None, fig=N
                          labelbottom=False)
 
     ax_dif = fig.add_subplot(133)
-    ax_dif.set_title('Fix - Moving image', fontsize=const.FONT_SIZE)
+    ax_dif.set_title('Fix - Moving image', fontsize=C.FONT_SIZE)
     ax_dif.imshow(fix_img[..., 0] - mov_img[..., 0], cmap=cmap_bin)
     ax_dif.tick_params(axis='both',
                        which='both',
@@ -1078,7 +1105,7 @@ def compare_disp_maps(disp_m_f, disp_f_m, fix_img, mov_img, filename=None, fig=N
 
     if filename is not None:
         plt.savefig(filename, format='png')  # Call before show
-    if not const.REMOTE:
+    if not C.REMOTE:
         plt.show()
     else:
         plt.close()
@@ -1104,7 +1131,7 @@ def plot_train_step(list_imgs: [np.ndarray], fig_title='TRAINING', dest_folder='
     fig.tight_layout(pad=5.0)
     ax = fig.add_subplot(2, num_cols, 1, projection='3d')
     ax.voxels(list_imgs[0][0, ..., 0] > 0.0, facecolors='red', edgecolors='red', label='Fixed')
-    ax.set_title('Fix image', fontsize=const.FONT_SIZE)
+    ax.set_title('Fix image', fontsize=C.FONT_SIZE)
     _square_3d_plot(np.arange(0, 63), np.arange(0, 63), np.arange(0, 63), ax)
 
     for i in range(2, num_preds+2):
@@ -1116,23 +1143,23 @@ def plot_train_step(list_imgs: [np.ndarray], fig_title='TRAINING', dest_folder='
 
     ax = fig.add_subplot(2, num_cols, num_preds+2, projection='3d')
     ax.voxels(list_imgs[1][0, ..., 0] > 0.0, facecolors='blue', edgecolors='blue', label='Moving')
-    ax.set_title('Fix image', fontsize=const.FONT_SIZE)
+    ax.set_title('Fix image', fontsize=C.FONT_SIZE)
     _square_3d_plot(np.arange(0, 63), np.arange(0, 63), np.arange(0, 63), ax)
 
     for i in range(num_preds+2, 2 * num_preds + 2):
         ax = fig.add_subplot(2, num_cols, i + 1, projection='3d')
         c, d, s = _prepare_quiver_map(list_imgs[i][0, ...], dim=3)
-        ax.quiver(c[const.H_DISP], c[const.W_DISP], c[const.D_DISP],
-                  d[const.H_DISP], d[const.W_DISP], d[const.D_DISP],
+        ax.quiver(c[C.H_DISP], c[C.W_DISP], c[C.D_DISP],
+                  d[C.H_DISP], d[C.W_DISP], d[C.D_DISP],
                   norm=True)
         ax.set_title('Disp. #{}'.format(i - 5))
         _square_3d_plot(np.arange(0, 63), np.arange(0, 63), np.arange(0, 63), ax)
 
-    fig.suptitle(fig_title, fontsize=const.FONT_SIZE)
+    fig.suptitle(fig_title, fontsize=C.FONT_SIZE)
 
     if save_file:
         plt.savefig(os.path.join(dest_folder, fig_title+'.png'), format='png')  # Call before show
-    if not const.REMOTE:
+    if not C.REMOTE:
         plt.show()
     else:
         plt.close()
@@ -1149,3 +1176,66 @@ def _square_3d_plot(X, Y, Z, ax):
     ax.set_ylim(mid_y - max_range, mid_y + max_range)
     ax.set_zlim(mid_z - max_range, mid_z + max_range)
 
+
+def remove_tick_labels(ax, project_3d=False):
+    ax.set_xticklabels([])
+    ax.set_yticklabels([])
+    if project_3d:
+        ax.set_zticklabels([])
+    return ax
+
+
+def add_axes_arrows_3d(ax, arrow_length=10, xyz_colours=['r', 'g', 'b'], xyz_label=['X', 'Y', 'Z'], dist_arrow_text=3):
+    x_limits = ax.get_xlim3d()
+    y_limits = ax.get_ylim3d()
+    z_limits = ax.get_zlim3d()
+
+    x_len = x_limits[1] - x_limits[0]
+    y_len = y_limits[1] - y_limits[0]
+    z_len = z_limits[1] - z_limits[0]
+
+    ax.quiver(x_limits[0], y_limits[0], z_limits[0], x_len, 0, 0, color=xyz_colours[0], arrow_length_ratio=0) # (init_loc, end_loc, params)
+    ax.quiver(x_limits[0], y_limits[0], z_limits[0], 0, y_len, 0, color=xyz_colours[1], arrow_length_ratio=0)
+    ax.quiver(x_limits[0], y_limits[0], z_limits[0], 0, 0, z_len, color=xyz_colours[2], arrow_length_ratio=0)
+
+    # X axis
+    ax.quiver(x_limits[1], y_limits[0], z_limits[0], arrow_length, 0, 0, color=xyz_colours[0])
+    ax.text(x_limits[1] + arrow_length + dist_arrow_text, y_limits[0], z_limits[0], xyz_label[0], fontsize=20, ha='right', va='top')
+
+    # Y axis
+    ax.quiver(x_limits[0], y_limits[1], z_limits[0], 0, arrow_length, 0, color=xyz_colours[1])
+    ax.text(x_limits[0], y_limits[1] + arrow_length + dist_arrow_text, z_limits[0], xyz_label[0], fontsize=20, ha='left', va='top')
+
+    # Z axis
+    ax.quiver(x_limits[0], y_limits[0], z_limits[1], 0, 0, arrow_length, color=xyz_colours[2])
+    ax.text(x_limits[0], y_limits[0], z_limits[1] + arrow_length + dist_arrow_text, xyz_label[0], fontsize=20, ha='center', va='bottom')
+
+    return ax
+
+
+def add_axes_arrows_2d(ax, arrow_length=10, xy_colour=['r', 'g'], xy_label=['X', 'Y']):
+    x_limits = list(ax.get_xlim())
+    y_limits = list(ax.get_ylim())
+    origin = (x_limits[0], y_limits[1])
+
+    ax.annotate('', xy=(origin[0] + arrow_length, origin[1]), xytext=origin,
+                arrowprops=dict(headlength=8., headwidth=10., width=5., color=xy_colour[0]))
+    ax.annotate('', xy=(origin[0], origin[1] + arrow_length), xytext=origin,
+                arrowprops=dict(headlength=8., headwidth=10., width=5., color=xy_colour[0]))
+
+    ax.text(origin[0] + arrow_length, origin[1], xy_label[0], fontsize=25, ha='left', va='bottom')
+    ax.text(origin[0] - 1, origin[1] + arrow_length, xy_label[1], fontsize=25, ha='right', va='top')
+
+    return ax
+
+
+def set_axes_size(w,h, ax=None):
+    """ w, h: width, height in inches """
+    if not ax: ax=plt.gca()
+    l = ax.figure.subplotpars.left
+    r = ax.figure.subplotpars.right
+    t = ax.figure.subplotpars.top
+    b = ax.figure.subplotpars.bottom
+    figw = float(w)/(r-l)
+    figh = float(h)/(t-b)
+    ax.figure.set_size_inches(figw, figh)
