@@ -236,6 +236,7 @@ if __name__ == '__main__':
                 # plt.close()
 
                 plot_predictions(fix_img, mov_img, disp_map, pred_img, os.path.join(output_folder, '{:03d}_figures.png'.format(step)), show=False)
+                plot_predictions(fix_seg, mov_seg, disp_map, pred_seg, os.path.join(output_folder, '{:03d}_figures_seg.png'.format(step)), show=False)
                 save_disp_map_img(disp_map, 'Displacement map', os.path.join(output_folder, '{:03d}_disp_map_fig.png'.format(step)), show=False)
 
                 progress_bar.set_description('SSIM {:.04f}\tDICE: {:.04f}'.format(ssim, dice))
