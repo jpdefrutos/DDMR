@@ -216,9 +216,9 @@ if __name__ == '__main__':
                 # mov_centroids_isotropic = mov_centroids * upsample_scale
                 pred_centroids_isotropic = pred_centroids * upsample_scale
 
-                fix_centroids_isotropic = np.divide(fix_centroids_isotropic, C.IXI_DATASET_iso_to_cubic_scales)
-                # mov_centroids_isotropic = np.divide(mov_centroids_isotropic, C.IXI_DATASET_iso_to_cubic_scales)
-                pred_centroids_isotropic = np.divide(pred_centroids_isotropic, C.IXI_DATASET_iso_to_cubic_scales)
+                fix_centroids_isotropic = np.divide(fix_centroids_isotropic, C.COMET_DATASET_iso_to_cubic_scales)
+                # mov_centroids_isotropic = np.divide(mov_centroids_isotropic, C.COMET_DATASET_iso_to_cubic_scales)
+                pred_centroids_isotropic = np.divide(pred_centroids_isotropic, C.COMET_DATASET_iso_to_cubic_scales)
                 # Now we can measure the TRE in mm
                 tre_array = target_registration_error(fix_centroids_isotropic, pred_centroids_isotropic, False).eval()
                 tre = np.mean([v for v in tre_array if not np.isnan(v)])

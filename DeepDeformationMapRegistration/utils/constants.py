@@ -509,6 +509,8 @@ REG_MANUAL_W = [1.] * len(REG_PRIOR_W)
 # .../T1/training/zoom_factors.csv contain the scale factors of all the training samples from isotropic to 128x128x128
 #   The augmentation values will be scaled using the average+std
 IXI_DATASET_iso_to_cubic_scales = np.asarray([0.655491 + 0.039223, 0.496783 + 0.029349, 0.499691 + 0.028155])
+# ...OSLO_COMET_CT/Formatted_128x128x128/zoom_factors.csv contain the scale factors of all the training samples from isotropic to 128x128x128
+COMET_DATASET_iso_to_cubic_scales = np.asarray([0.455259 + 0.048027, 0.492012 + 0.044298, 0.577552 + 0.051708])
 MAX_AUG_DISP_ISOT = 30
 MAX_AUG_DEF_ISOT = 6
 MAX_AUG_DISP = np.max(MAX_AUG_DISP_ISOT * IXI_DATASET_iso_to_cubic_scales)  # Scaled displacements
