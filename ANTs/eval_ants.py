@@ -1,14 +1,21 @@
 import h5py
 import ants
 import numpy as np
+import nibabel as nb
 import DeepDeformationMapRegistration.utils.constants as C
 import os
-from tqdm import  tqdm
+from tqdm import tqdm
 import re
+import time
+import pandas as pd
 
 from DeepDeformationMapRegistration.losses import StructuralSimilarity_simplified, NCC, GeneralizedDICEScore, HausdorffDistanceErosion, target_registration_error
 from DeepDeformationMapRegistration.ms_ssim_tf import MultiScaleStructuralSimilarity
 from DeepDeformationMapRegistration.utils.misc import DisplacementMapInterpolator, segmentation_ohe_to_cardinal
+from DeepDeformationMapRegistration.utils.nifti_utils import save_nifti
+from DeepDeformationMapRegistration.utils.visualization import save_disp_map_img, plot_predictions
+
+import voxelmorph as vxm
 
 from argparse import ArgumentParser
 
@@ -30,6 +37,7 @@ if __name__ == '__main__':
     parser.add_argument('--outdir', type=str, help='Output directory')
     args = parser.parse_args()
 
+    os.makedirs(args.outdir, exist_ok=True)
     dataset_files = os.listdir(args.dataset)
     dataset_files.sort()
     dataset_files = [os.path.join(args.dataset, f) for f in dataset_files if re.match(DATASET_NAMES, f)]
@@ -37,22 +45,23 @@ if __name__ == '__main__':
     dataset_iterator = tqdm(dataset_files)
 
     f = h5py.File(dataset_files[0], 'r')
-    image_output_shape = list(f['fix_image'][:].shape[:-1])
+    image_shape = list(f['fix_image'][:].shape[:-1])
+    nb_labels = f['fix_segmentations'][:].shape[-1]
     f.close()
 
     #### TF prep
     metric_fncs = [StructuralSimilarity_simplified(patch_size=2, dim=3, dynamic_range=1.).metric,
-                   NCC(image_input_shape).metric,
+                   NCC(image_shape).metric,
                    vxm.losses.MSE().loss,
                    MultiScaleStructuralSimilarity(max_val=1., filter_size=3).metric,
-                   GeneralizedDICEScore(image_output_shape + [nb_labels], num_labels=nb_labels).metric,
-                   HausdorffDistanceErosion(3, 10, im_shape=image_output_shape + [nb_labels]).metric,
-                   GeneralizedDICEScore(image_output_shape + [nb_labels], num_labels=nb_labels).metric_macro]
+                   GeneralizedDICEScore(image_shape + [nb_labels], num_labels=nb_labels).metric,
+                   HausdorffDistanceErosion(3, 10, im_shape=image_shape + [nb_labels]).metric,
+                   GeneralizedDICEScore(image_shape + [nb_labels], num_labels=nb_labels).metric_macro]
 
-    fix_img_ph = tf.placeholder(tf.float32, (1, *image_output_shape, 1), name='fix_img')
-    pred_img_ph = tf.placeholder(tf.float32, (1, *image_output_shape, 1), name='pred_img')
-    fix_seg_ph = tf.placeholder(tf.float32, (1, *image_output_shape, nb_labels), name='fix_seg')
-    pred_seg_ph = tf.placeholder(tf.float32, (1, *image_output_shape, nb_labels), name='pred_seg')
+    fix_img_ph = tf.placeholder(tf.float32, (1, *image_shape, 1), name='fix_img')
+    pred_img_ph = tf.placeholder(tf.float32, (1, *image_shape, 1), name='pred_img')
+    fix_seg_ph = tf.placeholder(tf.float32, (1, *image_shape, nb_labels), name='fix_seg')
+    pred_seg_ph = tf.placeholder(tf.float32, (1, *image_shape, nb_labels), name='pred_seg')
 
     ssim_tf = metric_fncs[0](fix_img_ph, pred_img_ph)
     ncc_tf = metric_fncs[1](fix_img_ph, pred_img_ph)
@@ -70,14 +79,18 @@ if __name__ == '__main__':
     sess = tf.Session(config=config)
     tf.keras.backend.set_session(sess)
     ####
-    dm_interp = DisplacementMapInterpolator(image_output_shape, 'griddata')
+    dm_interp = DisplacementMapInterpolator(image_shape, 'griddata')
+    # Header of the metrics csv file
+    csv_header = ['File', 'SSIM', 'MS-SSIM', 'NCC', 'MSE', 'DICE', 'DICE_MACRO', 'HD', 'Time_SyN', 'Time_SyNCC', 'TRE']
 
-    metrics_file = os.path.join(output_folder, 'metrics.csv')
+    metrics_file = os.path.join(args.outdir, 'metrics.csv')
+    with open(metrics_file, 'w') as f:
+        f.write(';'.join(csv_header)+'\n')
 
-    for file_path in dataset_iterator:
+    for step, file_path in tqdm(enumerate(dataset_iterator)):
         file_num = int(re.findall('(\d+)', os.path.split(file_path)[-1])[0])
 
-        dataset_iterator.set_description('{} ({}): laoding data'.format(file_num, dataset_name))
+        dataset_iterator.set_description('{} ({}): laoding data'.format(file_num, args.dataset))
         with h5py.File(file_path, 'r') as vol_file:
             fix_img = vol_file['fix_image'][:]
             mov_img = vol_file['mov_image'][:]
@@ -85,63 +98,78 @@ if __name__ == '__main__':
             fix_seg = vol_file['fix_segmentations'][:]
             mov_seg = vol_file['mov_segmentations'][:]
 
-            fix_centroid = vol_file['fix_centroids'][:]
-            mov_centroid = vol_file['mov_centroids'][:]
+            fix_centroids = vol_file['fix_centroids'][:]
+            mov_centroids = vol_file['mov_centroids'][:]
 
         # ndarray to ANTsImage
-        fix_img = ants.make_image(fix_img.shape, fix_img)
-        mov_img = ants.make_image(mov_img.shape, mov_img)
+        fix_img_ants = ants.make_image(fix_img.shape[:-1], np.squeeze(fix_img))  # ANTs doesn't work fine with 1-ch images
+        mov_img_ants = ants.make_image(mov_img.shape[:-1], np.squeeze(mov_img))  # ANTs doesn't work fine with 1-ch images
 
-        reg_output_syn = ants.registration(fix_img, mov_img, 'SyN')
-        reg_output_syncc = ants.registration(fix_img, mov_img, 'SyNCC')
+        t0_syn = time.time()
+        reg_output_syn = ants.registration(fix_img_ants, mov_img_ants, 'SyN')
+        t1_syn = time.time()
+
+        t0_syncc = time.time()
+        reg_output_syncc = ants.registration(fix_img_ants, mov_img_ants, 'SyNCC')
+        t1_syncc = time.time()
+
         mov_to_fix_trf_syn = reg_output_syn[FWD_TRFS]
         mov_to_fix_trf_syncc = reg_output_syn[FWD_TRFS]
         if not len(mov_to_fix_trf_syn) and not len(mov_to_fix_trf_syncc):
             print('ERR: Registration failed for: '+file_path)
         else:
             for reg_output in [reg_output_syn, reg_output_syncc]:
-                mov_to_fix_trf = reg_output[FWD_TRFS]
+                mov_to_fix_trf_list = reg_output[FWD_TRFS]
                 pred_img = reg_output[WARPED_MOV].numpy()
-                pred_seg = mov_to_fix_trf.apply_to_image(ants.make_image(mov_seg.shape, mov_seg)).numpy()
+                pred_img = pred_img[..., np.newaxis]  # ANTs doesn't work fine with 1-ch images
 
+                fix_seg_ants = ants.make_image(fix_seg.shape, np.squeeze(fix_seg))
+                mov_seg_ants = ants.make_image(mov_seg.shape, np.squeeze(mov_seg))
+                pred_seg = ants.apply_transforms(fixed=fix_seg_ants, moving=mov_seg_ants,
+                                                 transformlist=mov_to_fix_trf_list).numpy()
+                pred_seg = np.squeeze(pred_seg)  # ANTs adds an extra axis which shouldn't be there
                 with sess.as_default():
                     dice, hd, dice_macro = sess.run([dice_tf, hd_tf, dice_macro_tf],
-                                                    {'fix_seg:0': fix_seg, 'pred_seg:0': pred_seg})
+                                                    {'fix_seg:0': fix_seg[np.newaxis, ...],  # Batch axis
+                                                     'pred_seg:0': pred_seg[np.newaxis, ...]  # Batch axis
+                                                     })
 
                     pred_seg_card = segmentation_ohe_to_cardinal(pred_seg).astype(np.float32)
                     mov_seg_card = segmentation_ohe_to_cardinal(mov_seg).astype(np.float32)
                     fix_seg_card = segmentation_ohe_to_cardinal(fix_seg).astype(np.float32)
 
                     ssim, ncc, mse, ms_ssim = sess.run([ssim_tf, ncc_tf, mse_tf, ms_ssim_tf],
-                                                       {'fix_img:0': fix_img, 'pred_img:0': pred_img})
+                                                       {'fix_img:0': fix_img[np.newaxis, ...],  # Batch axis
+                                                        'pred_img:0': pred_img[np.newaxis, ...]  # Batch axis
+                                                        })
                     ms_ssim = ms_ssim[0]
-                tf.keras.backend.clear_session()
 
-                # TRE
-                pred_centroids = dm_interp(mov_to_fix_trf.numpy(), mov_centroid, backwards=True) + mov_centroid
-                upsample_scale = 128 / 64
-                fix_centroids_isotropic = fix_centroids * upsample_scale
-                pred_centroids_isotropic = pred_centroids * upsample_scale
+                    # TRE
+                    disp_map = np.squeeze(np.asarray(nb.load(mov_to_fix_trf_list[0]).dataobj))
+                    pred_centroids = dm_interp(disp_map, mov_centroids, backwards=True) + mov_centroids
+                    upsample_scale = 128 / 64
+                    fix_centroids_isotropic = fix_centroids * upsample_scale
+                    pred_centroids_isotropic = pred_centroids * upsample_scale
 
-                fix_centroids_isotropic = np.divide(fix_centroids_isotropic, C.IXI_DATASET_iso_to_cubic_scales)
-                pred_centroids_isotropic = np.divide(pred_centroids_isotropic, C.IXI_DATASET_iso_to_cubic_scales)
-                tre_array = target_registration_error(fix_centroids_isotropic, pred_centroids_isotropic, False).eval()
-                tre = np.mean([v for v in tre_array if not np.isnan(v)])
+                    fix_centroids_isotropic = np.divide(fix_centroids_isotropic, C.COMET_DATASET_iso_to_cubic_scales)
+                    pred_centroids_isotropic = np.divide(pred_centroids_isotropic, C.COMET_DATASET_iso_to_cubic_scales)
+                    tre_array = target_registration_error(fix_centroids_isotropic, pred_centroids_isotropic, False).eval()
+                    tre = np.mean([v for v in tre_array if not np.isnan(v)])
 
-                new_line = [step, ssim, ms_ssim, ncc, mse, dice, dice_macro, hd, t1-t0, tre, len(missing_lbls), missing_lbls]
+                new_line = [step, ssim, ms_ssim, ncc, mse, dice, dice_macro, hd, t1_syn-t0_syn, t1_syncc-t0_syncc, tre]
                 with open(metrics_file, 'a') as f:
                     f.write(';'.join(map(str, new_line))+'\n')
 
-                save_nifti(fix_img[0, ...], os.path.join(output_folder, '{:03d}_fix_img_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
-                save_nifti(mov_img[0, ...], os.path.join(output_folder, '{:03d}_mov_img_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
-                save_nifti(pred_img[0, ...], os.path.join(output_folder, '{:03d}_pred_img_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
-                save_nifti(fix_seg_card[0, ...], os.path.join(output_folder, '{:03d}_fix_seg_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
-                save_nifti(mov_seg_card[0, ...], os.path.join(output_folder, '{:03d}_mov_seg_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
-                save_nifti(pred_seg_card[0, ...], os.path.join(output_folder, '{:03d}_pred_seg_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
+                save_nifti(fix_img[0, ...], os.path.join(args.outdir, '{:03d}_fix_img_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
+                save_nifti(mov_img[0, ...], os.path.join(args.outdir, '{:03d}_mov_img_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
+                save_nifti(pred_img[0, ...], os.path.join(args.outdir, '{:03d}_pred_img_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
+                save_nifti(fix_seg_card[0, ...], os.path.join(args.outdir, '{:03d}_fix_seg_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
+                save_nifti(mov_seg_card[0, ...], os.path.join(args.outdir, '{:03d}_mov_seg_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
+                save_nifti(pred_seg_card[0, ...], os.path.join(args.outdir, '{:03d}_pred_seg_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
 
-                plot_predictions(fix_img, mov_img, disp_map, pred_img, os.path.join(output_folder, '{:03d}_figures_img.png'.format(step)), show=False)
-                plot_predictions(fix_seg, mov_seg, disp_map, pred_seg, os.path.join(output_folder, '{:03d}_figures_seg.png'.format(step)), show=False)
-                save_disp_map_img(disp_map, 'Displacement map', os.path.join(output_folder, '{:03d}_disp_map_fig.png'.format(step)), show=False)
+                plot_predictions(fix_img[np.newaxis, ...], mov_img[np.newaxis, ...], disp_map[np.newaxis, ...], pred_img[np.newaxis, ...], os.path.join(args.outdir, '{:03d}_figures_img.png'.format(step)), show=False)
+                plot_predictions(fix_seg[np.newaxis, ...], mov_seg[np.newaxis, ...], disp_map[np.newaxis, ...], pred_seg[np.newaxis, ...], os.path.join(args.outdir, '{:03d}_figures_seg.png'.format(step)), show=False)
+                save_disp_map_img(disp_map[np.newaxis, ...], 'Displacement map', os.path.join(args.outdir, '{:03d}_disp_map_fig.png'.format(step)), show=False)
 
     print('Summary\n=======\n')
     print('\nAVG:\n' + str(pd.read_csv(metrics_file, sep=';', header=0).mean(axis=0)) + '\nSTD:\n' + str(
