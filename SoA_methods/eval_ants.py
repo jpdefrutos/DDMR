@@ -102,8 +102,8 @@ if __name__ == '__main__':
             mov_centroids = vol_file['mov_centroids'][:]
 
         # ndarray to ANTsImage
-        fix_img_ants = ants.make_image(fix_img.shape[:-1], np.squeeze(fix_img))  # ANTs doesn't work fine with 1-ch images
-        mov_img_ants = ants.make_image(mov_img.shape[:-1], np.squeeze(mov_img))  # ANTs doesn't work fine with 1-ch images
+        fix_img_ants = ants.make_image(fix_img.shape[:-1], np.squeeze(fix_img))  # SoA doesn't work fine with 1-ch images
+        mov_img_ants = ants.make_image(mov_img.shape[:-1], np.squeeze(mov_img))  # SoA doesn't work fine with 1-ch images
 
         t0_syn = time.time()
         reg_output_syn = ants.registration(fix_img_ants, mov_img_ants, 'SyN')
@@ -121,13 +121,13 @@ if __name__ == '__main__':
             for reg_output in [reg_output_syn, reg_output_syncc]:
                 mov_to_fix_trf_list = reg_output[FWD_TRFS]
                 pred_img = reg_output[WARPED_MOV].numpy()
-                pred_img = pred_img[..., np.newaxis]  # ANTs doesn't work fine with 1-ch images
+                pred_img = pred_img[..., np.newaxis]  # SoA doesn't work fine with 1-ch images
 
                 fix_seg_ants = ants.make_image(fix_seg.shape, np.squeeze(fix_seg))
                 mov_seg_ants = ants.make_image(mov_seg.shape, np.squeeze(mov_seg))
                 pred_seg = ants.apply_transforms(fixed=fix_seg_ants, moving=mov_seg_ants,
                                                  transformlist=mov_to_fix_trf_list).numpy()
-                pred_seg = np.squeeze(pred_seg)  # ANTs adds an extra axis which shouldn't be there
+                pred_seg = np.squeeze(pred_seg)  # SoA adds an extra axis which shouldn't be there
                 with sess.as_default():
                     dice, hd, dice_macro = sess.run([dice_tf, hd_tf, dice_macro_tf],
                                                     {'fix_seg:0': fix_seg[np.newaxis, ...],  # Batch axis
