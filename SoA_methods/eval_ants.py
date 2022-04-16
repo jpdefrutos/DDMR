@@ -83,7 +83,7 @@ if __name__ == '__main__':
     sess = tf.Session(config=config)
     tf.keras.backend.set_session(sess)
     ####
-    os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = "12"  #https://github.com/ANTsX/ANTsPy/issues/261
+    os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = "{:d}".format(os.cpu_count())  #https://github.com/ANTsX/ANTsPy/issues/261
     print("Running ANTs using {} threads".format(os.environ.get("ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS")))
     dm_interp = DisplacementMapInterpolator(image_shape, 'griddata')
     # Header of the metrics csv file
