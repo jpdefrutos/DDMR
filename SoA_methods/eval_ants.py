@@ -2,18 +2,22 @@ import h5py
 import ants
 import numpy as np
 import nibabel as nb
-import DeepDeformationMapRegistration.utils.constants as C
-import os
+import os, sys
 from tqdm import tqdm
 import re
 import time
 import pandas as pd
+
+currentdir = os.path.dirname(os.path.realpath(__file__))
+parentdir = os.path.dirname(currentdir)
+sys.path.append(parentdir)  # PYTHON > 3.3 does not allow relative referencing
 
 from DeepDeformationMapRegistration.losses import StructuralSimilarity_simplified, NCC, GeneralizedDICEScore, HausdorffDistanceErosion, target_registration_error
 from DeepDeformationMapRegistration.ms_ssim_tf import MultiScaleStructuralSimilarity
 from DeepDeformationMapRegistration.utils.misc import DisplacementMapInterpolator, segmentation_ohe_to_cardinal
 from DeepDeformationMapRegistration.utils.nifti_utils import save_nifti
 from DeepDeformationMapRegistration.utils.visualization import save_disp_map_img, plot_predictions
+import DeepDeformationMapRegistration.utils.constants as C
 
 import voxelmorph as vxm
 
@@ -79,18 +83,21 @@ if __name__ == '__main__':
     sess = tf.Session(config=config)
     tf.keras.backend.set_session(sess)
     ####
+    os.environ["ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS"] = "12"  #https://github.com/ANTsX/ANTsPy/issues/261
+    print("Running ANTs using {} threads".format(os.environ.get("ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS")))
     dm_interp = DisplacementMapInterpolator(image_shape, 'griddata')
     # Header of the metrics csv file
-    csv_header = ['File', 'SSIM', 'MS-SSIM', 'NCC', 'MSE', 'DICE', 'DICE_MACRO', 'HD', 'Time_SyN', 'Time_SyNCC', 'TRE']
+    csv_header = ['File', 'Method', 'SSIM', 'MS-SSIM', 'NCC', 'MSE', 'DICE', 'DICE_MACRO', 'HD', 'Time_SyN', 'Time_SyNCC', 'TRE']
 
     metrics_file = os.path.join(args.outdir, 'metrics.csv')
     with open(metrics_file, 'w') as f:
         f.write(';'.join(csv_header)+'\n')
 
-    for step, file_path in tqdm(enumerate(dataset_iterator)):
+    print('Starting the loop')
+    for step, file_path in tqdm(enumerate(dataset_iterator), desc="Running ANTs"):
         file_num = int(re.findall('(\d+)', os.path.split(file_path)[-1])[0])
 
-        dataset_iterator.set_description('{} ({}): laoding data'.format(file_num, args.dataset))
+        dataset_iterator.set_description('{} ({}): loading data'.format(file_num, args.dataset))
         with h5py.File(file_path, 'r') as vol_file:
             fix_img = vol_file['fix_image'][:]
             mov_img = vol_file['mov_image'][:]
@@ -118,7 +125,7 @@ if __name__ == '__main__':
         if not len(mov_to_fix_trf_syn) and not len(mov_to_fix_trf_syncc):
             print('ERR: Registration failed for: '+file_path)
         else:
-            for reg_output in [reg_output_syn, reg_output_syncc]:
+            for reg_method, reg_output in zip(['SyN', 'SyNCC'], [reg_output_syn, reg_output_syncc]):
                 mov_to_fix_trf_list = reg_output[FWD_TRFS]
                 pred_img = reg_output[WARPED_MOV].numpy()
                 pred_img = pred_img[..., np.newaxis]  # SoA doesn't work fine with 1-ch images
@@ -156,7 +163,7 @@ if __name__ == '__main__':
                     tre_array = target_registration_error(fix_centroids_isotropic, pred_centroids_isotropic, False).eval()
                     tre = np.mean([v for v in tre_array if not np.isnan(v)])
 
-                new_line = [step, ssim, ms_ssim, ncc, mse, dice, dice_macro, hd, t1_syn-t0_syn, t1_syncc-t0_syncc, tre]
+                new_line = [step, reg_method, ssim, ms_ssim, ncc, mse, dice, dice_macro, hd, t1_syn-t0_syn, t1_syncc-t0_syncc, tre]
                 with open(metrics_file, 'a') as f:
                     f.write(';'.join(map(str, new_line))+'\n')
 
