@@ -1,4 +1,6 @@
 import os, sys
+import warnings
+
 currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
 sys.path.append(parentdir)  # PYTHON > 3.3 does not allow relative referencing
@@ -32,12 +34,17 @@ from tqdm import tqdm
 from datetime import datetime
 
 
-def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr=1e-4, rw=5e-3, simil='ssim'):
+def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr=1e-4, rw=5e-3, simil='ssim',
+                 acc_gradients=16, batch_size=1, max_epochs=10000, early_stop_patience=1000, image_size=64,
+                 unet=[16, 32, 64, 128, 256], head=[16, 16]):
     assert dataset_folder is not None and output_folder is not None
 
     os.environ['CUDA_DEVICE_ORDER'] = C.DEV_ORDER
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_num) # Check availability before running using 'nvidia-smi'
     C.GPU_NUM = str(gpu_num)
+
+    if batch_size != 1 and acc_gradients != 1:
+        warnings.warn('WARNING: Batch size and Accumulative gradient step are set!')
 
     output_folder = os.path.join(output_folder + '_' + datetime.now().strftime("%H%M%S-%d%m%Y"))
     os.makedirs(output_folder, exist_ok=True)
@@ -45,12 +52,12 @@ def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr
     log_file = open(os.path.join(output_folder, 'log.txt'), 'w')
     C.TRAINING_DATASET = dataset_folder #dataset_copy.copy_dataset()
     C.VALIDATION_DATASET = validation_folder
-    C.ACCUM_GRADIENT_STEP = 16
-    C.BATCH_SIZE = 16 if C.ACCUM_GRADIENT_STEP == 1 else C.ACCUM_GRADIENT_STEP
-    C.EARLY_STOP_PATIENCE = 5 * (C.ACCUM_GRADIENT_STEP / 2 if C.ACCUM_GRADIENT_STEP != 1 else 1)
+    C.ACCUM_GRADIENT_STEP = acc_gradients
+    C.BATCH_SIZE = batch_size if C.ACCUM_GRADIENT_STEP == 1 else 1
+    C.EARLY_STOP_PATIENCE = early_stop_patience
     C.LEARNING_RATE = lr
     C.LIMIT_NUM_SAMPLES = None
-    C.EPOCHS = 10000
+    C.EPOCHS = max_epochs
 
     aux = "[{}]\tINFO:\nTRAIN DATASET: {}\nVALIDATION DATASET: {}\n" \
           "GPU: {}\n" \
@@ -84,7 +91,7 @@ def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr
     validation_generator = data_generator.get_validation_generator()
 
     image_input_shape = train_generator.get_data_shape()[-1][:-1]
-    image_output_shape = [64] * 3
+    image_output_shape = [image_size] * 3
 
     # Config the training sessions
     config = tf.compat.v1.ConfigProto()  # device_count={'GPU':0})
@@ -125,13 +132,15 @@ def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr
     augm_model_valid = Model(inputs=input_layer_valid, outputs=augm_layer_valid(input_layer_valid))
 
     # Build model
-    enc_features = [16, 32, 32, 32]     # const.ENCODER_FILTERS
-    dec_features = [32, 32, 32, 32, 32, 16, 16]     # const.ENCODER_FILTERS[::-1]
+    # enc_features = [16, 32, 32, 32]     # const.ENCODER_FILTERS
+    # dec_features = [32, 32, 32, 32, 32, 16, 16]     # const.ENCODER_FILTERS[::-1]
+    enc_features = unet     # const.ENCODER_FILTERS
+    dec_features = enc_features[::-1] + head   # const.ENCODER_FILTERS[::-1]
     nb_features = [enc_features, dec_features]
     network = vxm.networks.VxmDense(inshape=image_output_shape,
                                     nb_unet_features=nb_features,
                                     int_steps=0)
-
+    network.summary(line_length=150)
     # Losses and loss weights
     SSIM_KER_SIZE = 5
     MS_SSIM_WEIGHTS = _MSSSIM_WEIGHTS[:3]

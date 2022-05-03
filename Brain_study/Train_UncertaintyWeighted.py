@@ -26,15 +26,20 @@ from DeepDeformationMapRegistration.utils.acummulated_optimizer import AdamAccum
 
 from Brain_study.data_generator import BatchGenerator
 from Brain_study.utils import SummaryDictionary, named_logs
+import warnings
 
 
-def launch_train(dataset_folder, validation_folder, output_folder, prior_reg_w=5e-3, lr=1e-4,
-                 gpu_num=0, simil=['mse'], segm=['dice']):
+def launch_train(dataset_folder, validation_folder, output_folder, prior_reg_w=5e-3, lr=1e-4, rw=5e-3,
+                 gpu_num=0, simil=['mse'], segm=['dice'], acc_gradients=16, batch_size=1, max_epochs=10000,
+                 early_stop_patience=1000, image_size=64, unet=[16, 32, 64, 128, 256], head=[16, 16]):
     assert dataset_folder is not None and output_folder is not None
 
     os.environ['CUDA_DEVICE_ORDER'] = C.DEV_ORDER
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_num) # Check availability before running using 'nvidia-smi'
     C.GPU_NUM = str(gpu_num)
+
+    if batch_size != 1 and acc_gradients != 1:
+        warnings.warn('WARNING: Batch size and Accumulative gradient step are set!')
 
     output_folder = os.path.join(output_folder + '_' + datetime.now().strftime("%H%M%S-%d%m%Y"))
     # dataset_copy = DatasetCopy(dataset_folder, os.path.join(output_folder, 'temp'))
@@ -42,12 +47,12 @@ def launch_train(dataset_folder, validation_folder, output_folder, prior_reg_w=5
     log_file = open(os.path.join(output_folder, 'log.txt'), 'w')
     C.TRAINING_DATASET = dataset_folder #dataset_copy.copy_dataset()
     C.VALIDATION_DATASET = validation_folder
-    C.ACCUM_GRADIENT_STEP = 16
-    C.BATCH_SIZE = 2 if C.ACCUM_GRADIENT_STEP == 1 else C.ACCUM_GRADIENT_STEP
-    C.EARLY_STOP_PATIENCE = 10 * (C.ACCUM_GRADIENT_STEP/2 if C.ACCUM_GRADIENT_STEP != 1 else 1)
+    C.ACCUM_GRADIENT_STEP = acc_gradients
+    C.BATCH_SIZE = batch_size if C.ACCUM_GRADIENT_STEP == 1 else 1
+    C.EARLY_STOP_PATIENCE = early_stop_patience
     C.LEARNING_RATE = lr
     C.LIMIT_NUM_SAMPLES = None
-    C.EPOCHS = 10000
+    C.EPOCHS = max_epochs
 
     aux = "[{}]\tINFO:\nTRAIN DATASET: {}\nVALIDATION DATASET: {}\n" \
           "GPU: {}\n" \
@@ -81,7 +86,7 @@ def launch_train(dataset_folder, validation_folder, output_folder, prior_reg_w=5
     validation_generator = data_generator.get_validation_generator()
 
     image_input_shape = train_generator.get_data_shape()[-1][:-1]
-    image_output_shape = [64] * 3
+    image_output_shape = [image_size] * 3
 
     nb_labels = len(train_generator.get_segmentation_labels())
 
@@ -119,13 +124,16 @@ def launch_train(dataset_folder, validation_folder, output_folder, prior_reg_w=5
     loss_segm = []
     for s in segm:
         if s=='dice':
-            loss_segm.append(GeneralizedDICEScore(image_output_shape + [train_generator.get_data_shape()[2][-1]], num_labels=nb_labels).loss)
+            loss_segm.append(GeneralizedDICEScore(image_output_shape + [nb_labels], num_labels=nb_labels).loss)
             prior_loss_w.append(1.)
         elif s=='hd':
-            loss_segm.append(HausdorffDistanceErosion(3, 10, im_shape=image_output_shape + [train_generator.get_data_shape()[2][-1]]).loss)
+            loss_segm.append(HausdorffDistanceErosion(3, 10, im_shape=image_output_shape + [nb_labels]).loss)
+            prior_loss_w.append(1.)
+        elif s == 'dice_macro':
+            loss_segm.append(GeneralizedDICEScore(image_output_shape + [nb_labels], num_labels=nb_labels).loss_macro)
             prior_loss_w.append(1.)
         else:
-            raise ValueError('Unknown similarity function: ', s)
+            raise ValueError('Unknown similarity function: ' + s)
 
     # Build augmentation layer model
     input_layer_augm = Input(shape=train_generator.get_data_shape()[0], name='input_augmentation')
@@ -142,8 +150,10 @@ def launch_train(dataset_folder, validation_folder, output_folder, prior_reg_w=5
                                    trainable=False)
     augmentation_model = Model(inputs=input_layer_augm, outputs=augm_layer(input_layer_augm))
 
-    enc_features = [16, 32, 32, 32]     # const.ENCODER_FILTERS
-    dec_features = [32, 32, 32, 32, 32, 16, 16]     # const.ENCODER_FILTERS[::-1]
+    # enc_features = [16, 32, 32, 32]     # const.ENCODER_FILTERS
+    # dec_features = [32, 32, 32, 32, 32, 16, 16]     # const.ENCODER_FILTERS[::-1]
+    enc_features = unet     # const.ENCODER_FILTERS
+    dec_features = enc_features[::-1] + head   # const.ENCODER_FILTERS[::-1]
     nb_features = [enc_features, dec_features]
     network = vxm.networks.VxmDenseSemiSupervisedSeg(inshape=image_output_shape,
                                                      nb_labels=nb_labels,
