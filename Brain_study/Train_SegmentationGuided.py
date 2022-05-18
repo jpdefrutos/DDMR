@@ -173,7 +173,8 @@ def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr
     loss_weights = {'transformer': 1,
                     'seg_transformer': 1.,
                     'flow': 5e-3}
-    metrics = {'transformer': [vxm.losses.MSE().loss, NCC(image_input_shape).metric, MultiScaleStructuralSimilarity(max_val=1., filter_size=SSIM_KER_SIZE, power_factors=MS_SSIM_WEIGHTS).metric],
+    metrics = {'transformer': [vxm.losses.MSE().loss, NCC(image_input_shape).metric, StructuralSimilarity_simplified(patch_size=SSIM_KER_SIZE, dim=3, dynamic_range=1.).metric,
+                               MultiScaleStructuralSimilarity(max_val=1., filter_size=SSIM_KER_SIZE, power_factors=MS_SSIM_WEIGHTS).metric],
                'seg_transformer': [GeneralizedDICEScore(image_output_shape + [train_generator.get_data_shape()[2][-1]], num_labels=nb_labels).metric_macro,
                                      #HausdorffDistanceErosion(3, 10, im_shape=image_output_shape + [train_generator.get_data_shape()[2][-1]]).metric
                                      ]}

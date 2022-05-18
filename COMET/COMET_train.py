@@ -34,21 +34,25 @@ import voxelmorph as vxm
 import h5py
 import re
 import itertools
+import warnings
 
 
 def launch_train(dataset_folder, validation_folder, output_folder, model_file, gpu_num=0, lr=1e-4, rw=5e-3, simil='ssim',
-                 segm='dice', max_epochs=C.EPOCHS, freeze_layers=None,
-                 acc_gradients=1, batch_size=16):
+                 segm='dice', max_epochs=C.EPOCHS, early_stop_patience=1000, freeze_layers=None,
+                 acc_gradients=1, batch_size=16, image_size=64,
+                 unet=[16, 32, 64, 128, 256], head=[16, 16]):
     # 0. Input checks
-    assert dataset_folder is not None and output_folder is not None and model_file is not None
-    assert '.h5' in model_file, 'The model must be an H5 file'
-
-    USE_SEGMENTATIONS = bool(re.search('SEGGUIDED', model_file))
+    assert dataset_folder is not None and output_folder is not None
+    if model_file != '':
+        assert '.h5' in model_file, 'The model must be an H5 file'
 
     # 1. Load variables
     os.environ['CUDA_DEVICE_ORDER'] = C.DEV_ORDER
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_num) # Check availability before running using 'nvidia-smi'
     C.GPU_NUM = str(gpu_num)
+
+    if batch_size != 1 and acc_gradients != 1:
+        warnings.warn('WARNING: Batch size and Accumulative gradient step are set!')
 
     if freeze_layers is not None:
         assert all(s in ['INPUT', 'OUTPUT', 'ENCODER', 'DECODER', 'TOP', 'BOTTOM'] for s in freeze_layers), \
@@ -63,8 +67,8 @@ def launch_train(dataset_folder, validation_folder, output_folder, model_file, g
     C.TRAINING_DATASET = dataset_folder #dataset_copy.copy_dataset()
     C.VALIDATION_DATASET = validation_folder
     C.ACCUM_GRADIENT_STEP = acc_gradients
-    C.BATCH_SIZE = batch_size if C.ACCUM_GRADIENT_STEP == 1 else C.ACCUM_GRADIENT_STEP
-    C.EARLY_STOP_PATIENCE = 5 * (C.ACCUM_GRADIENT_STEP / 2 if C.ACCUM_GRADIENT_STEP != 1 else 1)
+    C.BATCH_SIZE = batch_size if C.ACCUM_GRADIENT_STEP == 1 else 1
+    C.EARLY_STOP_PATIENCE = early_stop_patience
     C.LEARNING_RATE = lr
     C.LIMIT_NUM_SAMPLES = None
     C.EPOCHS = max_epochs
@@ -97,16 +101,16 @@ def launch_train(dataset_folder, validation_folder, output_folder, model_file, g
     print(aux)
 
     # 2. Data generator
-    used_labels = 'all' if USE_SEGMENTATIONS else 'none'
+    used_labels = 'none'
     data_generator = BatchGenerator(C.TRAINING_DATASET, C.BATCH_SIZE if C.ACCUM_GRADIENT_STEP == 1 else 1, True,
-                                    C.TRAINING_PERC, labels=[used_labels], combine_segmentations=not USE_SEGMENTATIONS,
+                                    C.TRAINING_PERC, labels=[used_labels], combine_segmentations=True,
                                     directory_val=C.VALIDATION_DATASET)
 
     train_generator = data_generator.get_train_generator()
     validation_generator = data_generator.get_validation_generator()
 
     image_input_shape = train_generator.get_data_shape()[-1][:-1]
-    image_output_shape = [64] * 3
+    image_output_shape = [image_size] * 3
     nb_labels = len(train_generator.get_segmentation_labels())
 
     # 3. Load model
@@ -133,7 +137,7 @@ def launch_train(dataset_folder, validation_folder, output_folder, model_file, g
                    GeneralizedDICEScore(image_output_shape + [nb_labels], num_labels=nb_labels).metric,
                    HausdorffDistanceErosion(3, 10, im_shape=image_output_shape + [nb_labels]).metric,
                    GeneralizedDICEScore(image_output_shape + [nb_labels], num_labels=nb_labels).metric_macro,]
-    print('MODEL LOCATION: ', model_file)
+
 
     try:
         network = tf.keras.models.load_model(model_file, {#'VxmDenseSemiSupervisedSeg': vxm.networks.VxmDenseSemiSupervisedSeg,
@@ -143,21 +147,18 @@ def launch_train(dataset_folder, validation_folder, output_folder, model_file, g
                                                           'metric': metric_fncs},
                                              compile=False)
     except ValueError as e:
-        enc_features = [16, 32, 32, 32]     # const.ENCODER_FILTERS
-        dec_features = [32, 32, 32, 32, 32, 16, 16]     # const.ENCODER_FILTERS[::-1]
+        # enc_features = [16, 32, 32, 32]     # const.ENCODER_FILTERS
+        # dec_features = [32, 32, 32, 32, 32, 16, 16]     # const.ENCODER_FILTERS[::-1]
+        enc_features = unet  # const.ENCODER_FILTERS
+        dec_features = enc_features[::-1] + head  # const.ENCODER_FILTERS[::-1]
         nb_features = [enc_features, dec_features]
-        if USE_SEGMENTATIONS:
-            network = vxm.networks.VxmDenseSemiSupervisedSeg(inshape=image_output_shape,
-                                                             nb_labels=nb_labels,
-                                                             nb_unet_features=nb_features,
-                                                             int_steps=0,
-                                                             int_downsize=1,
-                                                             seg_downsize=1)
-        else:
-            network = vxm.networks.VxmDense(inshape=image_output_shape,
-                                            nb_unet_features=nb_features,
-                                            int_steps=0)
-        network.load_weights(model_file, by_name=True)
+
+        network = vxm.networks.VxmDense(inshape=image_output_shape,
+                                        nb_unet_features=nb_features,
+                                        int_steps=0)
+        if model_file != '':
+            network.load_weights(model_file, by_name=True)
+            print('MODEL LOCATION: ', model_file)
     # 4. Freeze/unfreeze model layers
     # freeze_layers = range(0, len(network.layers) - 8)  # Do not freeze the last layers after the UNet (8 last layers)
     # for l in freeze_layers:
@@ -187,7 +188,7 @@ def launch_train(dataset_folder, validation_folder, output_folder, model_file, g
     network.summary()
     network.summary(print_fn=log_file.writelines)
     #   Complete the model with the augmentation layer
-    augm_train_input_shape = train_generator.get_data_shape()[0] if USE_SEGMENTATIONS else train_generator.get_data_shape()[-1]
+    augm_train_input_shape = train_generator.get_data_shape()[-1]
     input_layer_train = Input(shape=augm_train_input_shape, name='input_train')
     augm_layer_train = AugmentationLayer(max_displacement=COMET_C.MAX_AUG_DISP,   # Max 30 mm in isotropic space
                                          max_deformation=COMET_C.MAX_AUG_DEF,  # Max 6 mm in isotropic space
@@ -198,7 +199,7 @@ def launch_train(dataset_folder, validation_folder, output_folder, model_file, g
                                          brightness_augmentation=COMET_C.BRIGHTNESS_AUGMENTATION,
                                          in_img_shape=image_input_shape,
                                          out_img_shape=image_output_shape,
-                                         only_image=not USE_SEGMENTATIONS,  # If baseline then True
+                                         only_image=True,  # If baseline then True
                                          only_resize=False,
                                          trainable=False)
     augm_model_train = Model(inputs=input_layer_train, outputs=augm_layer_train(input_layer_train))
@@ -255,16 +256,6 @@ def launch_train(dataset_folder, validation_folder, output_folder, model_file, g
     else:
         raise ValueError('Unknown similarity metric: ' + simil)
 
-    if USE_SEGMENTATIONS:
-        if segm == 'hd':
-            loss_segm = HausdorffDistanceErosion(3, 10, im_shape=image_output_shape + [nb_labels]).loss
-        elif segm == 'dice':
-            loss_segm = GeneralizedDICEScore(image_output_shape + [nb_labels], num_labels=nb_labels).loss
-        elif segm == 'dice_macro':
-            loss_segm = GeneralizedDICEScore(image_output_shape + [nb_labels], num_labels=nb_labels).loss_macro
-        else:
-            raise ValueError('No valid value for segm')
-
     os.makedirs(os.path.join(output_folder, 'checkpoints'), exist_ok=True)
     os.makedirs(os.path.join(output_folder, 'tensorboard'), exist_ok=True)
     callback_tensorboard = TensorBoard(log_dir=os.path.join(output_folder, 'tensorboard'),
@@ -278,34 +269,17 @@ def launch_train(dataset_folder, validation_folder, output_folder, model_file, g
                                           save_best_only=True, monitor='val_loss', verbose=1, mode='min')
     callback_save_checkpoint = ModelCheckpoint(os.path.join(output_folder, 'checkpoints', 'checkpoint.h5'),
                                                save_weights_only=True, monitor='val_loss', verbose=0, mode='min')
-    if USE_SEGMENTATIONS:
-        losses = {'transformer': loss_fnc,
-                  'seg_transformer': loss_segm,
-                  'flow': vxm.losses.Grad('l2').loss}
-        metrics = {'transformer': [StructuralSimilarity_simplified(patch_size=SSIM_KER_SIZE, dim=3, dynamic_range=1.).metric,
-                                   MultiScaleStructuralSimilarity(max_val=1., filter_size=SSIM_KER_SIZE, power_factors=MS_SSIM_WEIGHTS).metric,
-                                   tf.keras.losses.MSE,
-                                   NCC(image_input_shape).metric],
-                   'seg_transformer': [GeneralizedDICEScore(image_output_shape + [train_generator.get_data_shape()[2][-1]], num_labels=nb_labels).metric,
-                                       HausdorffDistanceErosion(3, 10, im_shape=image_output_shape + [train_generator.get_data_shape()[2][-1]]).metric,
-                                       GeneralizedDICEScore(image_output_shape + [train_generator.get_data_shape()[2][-1]], num_labels=nb_labels).metric_macro,
-                                       ],
-                   #'flow': vxm.losses.Grad('l2').loss
-                   }
-        loss_weights = {'transformer': 1.,
-                        'seg_transformer': 1.,
-                        'flow': rw}
-    else:
-        losses = {'transformer': loss_fnc,
-                  'flow': vxm.losses.Grad('l2').loss}
-        metrics = {'transformer': [StructuralSimilarity_simplified(patch_size=SSIM_KER_SIZE, dim=3, dynamic_range=1.).metric,
-                                   MultiScaleStructuralSimilarity(max_val=1., filter_size=SSIM_KER_SIZE, power_factors=MS_SSIM_WEIGHTS).metric,
-                                   tf.keras.losses.MSE,
-                                   NCC(image_input_shape).metric],
-                   #'flow': vxm.losses.Grad('l2').loss
-                   }
-        loss_weights = {'transformer': 1.,
-                        'flow': rw}
+
+    losses = {'transformer': loss_fnc,
+              'flow': vxm.losses.Grad('l2').loss}
+    metrics = {'transformer': [StructuralSimilarity_simplified(patch_size=SSIM_KER_SIZE, dim=3, dynamic_range=1.).metric,
+                               MultiScaleStructuralSimilarity(max_val=1., filter_size=SSIM_KER_SIZE, power_factors=MS_SSIM_WEIGHTS).metric,
+                               tf.keras.losses.MSE,
+                               NCC(image_input_shape).metric],
+               #'flow': vxm.losses.Grad('l2').loss
+               }
+    loss_weights = {'transformer': 1.,
+                    'flow': rw}
 
     optimizer = AdamAccumulated(C.ACCUM_GRADIENT_STEP, C.LEARNING_RATE)
     network.compile(optimizer=optimizer,
@@ -359,12 +333,9 @@ def launch_train(dataset_folder, validation_folder, output_folder, model_file, g
                     print('TF Error : {}'.format(str(err)))
                     continue
 
-                if USE_SEGMENTATIONS:
-                    in_data = (mov_img, fix_img, mov_seg)
-                    out_data = (fix_img, fix_img, fix_seg)
-                else:
-                    in_data = (mov_img, fix_img)
-                    out_data = (fix_img, fix_img)
+                in_data = (mov_img, fix_img)
+                out_data = (fix_img, fix_img)
+
                 ret = network.train_on_batch(x=in_data, y=out_data)  # The second element doesn't matter
                 if np.isnan(ret).any():
                     os.makedirs(os.path.join(output_folder, 'corrupted'), exist_ok=True)
@@ -395,12 +366,8 @@ def launch_train(dataset_folder, validation_folder, output_folder, model_file, g
                     print('TF Error : {}'.format(str(err)))
                     continue
 
-                if USE_SEGMENTATIONS:
-                    in_data = (mov_img, fix_img, mov_seg)
-                    out_data = (fix_img, fix_img, fix_seg)
-                else:
-                    in_data = (mov_img, fix_img)
-                    out_data = (fix_img, fix_img)
+                in_data = (mov_img, fix_img)
+                out_data = (fix_img, fix_img)
                 ret = network.test_on_batch(x=in_data,
                                             y=out_data)
 

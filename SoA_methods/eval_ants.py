@@ -35,6 +35,9 @@ WARPED_FIX = 'warpedfixout'
 FWD_TRFS = 'fwdtransforms'
 INV_TRFS = 'invtransforms'
 
+os.environ['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
+os.environ['CUDA_VISIBLE_DEVICES'] = '2'
+
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--dataset', type=str, help='Directory with the images')
@@ -42,11 +45,13 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     os.makedirs(args.outdir, exist_ok=True)
+    os.makedirs(os.path.join(args.outdir, 'SyN'), exist_ok=True)
+    os.makedirs(os.path.join(args.outdir, 'SyNCC'), exist_ok=True)
     dataset_files = os.listdir(args.dataset)
     dataset_files.sort()
     dataset_files = [os.path.join(args.dataset, f) for f in dataset_files if re.match(DATASET_NAMES, f)]
 
-    dataset_iterator = tqdm(dataset_files)
+    dataset_iterator = tqdm(enumerate(dataset_files), desc="Running ANTs")
 
     f = h5py.File(dataset_files[0], 'r')
     image_shape = list(f['fix_image'][:].shape[:-1])
@@ -87,17 +92,19 @@ if __name__ == '__main__':
     print("Running ANTs using {} threads".format(os.environ.get("ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS")))
     dm_interp = DisplacementMapInterpolator(image_shape, 'griddata')
     # Header of the metrics csv file
-    csv_header = ['File', 'Method', 'SSIM', 'MS-SSIM', 'NCC', 'MSE', 'DICE', 'DICE_MACRO', 'HD', 'Time_SyN', 'Time_SyNCC', 'TRE']
+    csv_header = ['File', 'SSIM', 'MS-SSIM', 'NCC', 'MSE', 'DICE', 'DICE_MACRO', 'HD', 'Time', 'TRE']
 
-    metrics_file = os.path.join(args.outdir, 'metrics.csv')
-    with open(metrics_file, 'w') as f:
-        f.write(';'.join(csv_header)+'\n')
+    metrics_file = {'SyN': os.path.join(args.outdir, 'SyN', 'metrics.csv'),
+                    'SyNCC': os.path.join(args.outdir, 'SyNCC', 'metrics.csv')}
+    for k in metrics_file.keys():
+        with open(metrics_file[k], 'w') as f:
+            f.write(';'.join(csv_header)+'\n')
 
     print('Starting the loop')
-    for step, file_path in tqdm(enumerate(dataset_iterator), desc="Running ANTs"):
+    for step, file_path in dataset_iterator:
         file_num = int(re.findall('(\d+)', os.path.split(file_path)[-1])[0])
 
-        dataset_iterator.set_description('{} ({}): loading data'.format(file_num, args.dataset))
+        dataset_iterator.set_description('{} ({}): loading data'.format(file_num, file_path))
         with h5py.File(file_path, 'r') as vol_file:
             fix_img = vol_file['fix_image'][:]
             mov_img = vol_file['mov_image'][:]
@@ -112,10 +119,12 @@ if __name__ == '__main__':
         fix_img_ants = ants.make_image(fix_img.shape[:-1], np.squeeze(fix_img))  # SoA doesn't work fine with 1-ch images
         mov_img_ants = ants.make_image(mov_img.shape[:-1], np.squeeze(mov_img))  # SoA doesn't work fine with 1-ch images
 
+        dataset_iterator.set_description('{} ({}): running ANTs SyN'.format(file_num, file_path))
         t0_syn = time.time()
         reg_output_syn = ants.registration(fix_img_ants, mov_img_ants, 'SyN')
         t1_syn = time.time()
 
+        dataset_iterator.set_description('{} ({}): running ANTs SyN'.format(file_num, file_path))
         t0_syncc = time.time()
         reg_output_syncc = ants.registration(fix_img_ants, mov_img_ants, 'SyNCC')
         t1_syncc = time.time()
@@ -135,6 +144,8 @@ if __name__ == '__main__':
                 pred_seg = ants.apply_transforms(fixed=fix_seg_ants, moving=mov_seg_ants,
                                                  transformlist=mov_to_fix_trf_list).numpy()
                 pred_seg = np.squeeze(pred_seg)  # SoA adds an extra axis which shouldn't be there
+
+                dataset_iterator.set_description('{} ({}): Getting metrics {}'.format(file_num, file_path, reg_method))
                 with sess.as_default():
                     dice, hd, dice_macro = sess.run([dice_tf, hd_tf, dice_macro_tf],
                                                     {'fix_seg:0': fix_seg[np.newaxis, ...],  # Batch axis
@@ -163,22 +174,26 @@ if __name__ == '__main__':
                     tre_array = target_registration_error(fix_centroids_isotropic, pred_centroids_isotropic, False).eval()
                     tre = np.mean([v for v in tre_array if not np.isnan(v)])
 
-                new_line = [step, reg_method, ssim, ms_ssim, ncc, mse, dice, dice_macro, hd, t1_syn-t0_syn, t1_syncc-t0_syncc, tre]
-                with open(metrics_file, 'a') as f:
+                dataset_iterator.set_description('{} ({}): Saving data {}'.format(file_num, file_path, reg_method))
+                new_line = [step, ssim, ms_ssim, ncc, mse, dice, dice_macro, hd,
+                            t1_syn-t0_syn if reg_method == 'SyN' else t1_syncc-t0_syncc,
+                            tre]
+                with open(metrics_file[reg_method], 'a') as f:
                     f.write(';'.join(map(str, new_line))+'\n')
 
-                save_nifti(fix_img[0, ...], os.path.join(args.outdir, '{:03d}_fix_img_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
-                save_nifti(mov_img[0, ...], os.path.join(args.outdir, '{:03d}_mov_img_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
-                save_nifti(pred_img[0, ...], os.path.join(args.outdir, '{:03d}_pred_img_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
-                save_nifti(fix_seg_card[0, ...], os.path.join(args.outdir, '{:03d}_fix_seg_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
-                save_nifti(mov_seg_card[0, ...], os.path.join(args.outdir, '{:03d}_mov_seg_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
-                save_nifti(pred_seg_card[0, ...], os.path.join(args.outdir, '{:03d}_pred_seg_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
+                save_nifti(fix_img[0, ...], os.path.join(args.outdir, reg_method, '{:03d}_fix_img_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
+                save_nifti(mov_img[0, ...], os.path.join(args.outdir, reg_method, '{:03d}_mov_img_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
+                save_nifti(pred_img[0, ...], os.path.join(args.outdir, reg_method, '{:03d}_pred_img_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
+                save_nifti(fix_seg_card[0, ...], os.path.join(args.outdir, reg_method, '{:03d}_fix_seg_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
+                save_nifti(mov_seg_card[0, ...], os.path.join(args.outdir, reg_method, '{:03d}_mov_seg_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
+                save_nifti(pred_seg_card[0, ...], os.path.join(args.outdir, reg_method, '{:03d}_pred_seg_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
 
-                plot_predictions(fix_img[np.newaxis, ...], mov_img[np.newaxis, ...], disp_map[np.newaxis, ...], pred_img[np.newaxis, ...], os.path.join(args.outdir, '{:03d}_figures_img.png'.format(step)), show=False)
-                plot_predictions(fix_seg[np.newaxis, ...], mov_seg[np.newaxis, ...], disp_map[np.newaxis, ...], pred_seg[np.newaxis, ...], os.path.join(args.outdir, '{:03d}_figures_seg.png'.format(step)), show=False)
-                save_disp_map_img(disp_map[np.newaxis, ...], 'Displacement map', os.path.join(args.outdir, '{:03d}_disp_map_fig.png'.format(step)), show=False)
+                plot_predictions(fix_img[np.newaxis, ...], mov_img[np.newaxis, ...], disp_map[np.newaxis, ...], pred_img[np.newaxis, ...], os.path.join(args.outdir, reg_method, '{:03d}_figures_img.png'.format(step)), show=False)
+                plot_predictions(fix_seg[np.newaxis, ...], mov_seg[np.newaxis, ...], disp_map[np.newaxis, ...], pred_seg[np.newaxis, ...], os.path.join(args.outdir, reg_method, '{:03d}_figures_seg.png'.format(step)), show=False)
+                save_disp_map_img(disp_map[np.newaxis, ...], 'Displacement map', os.path.join(args.outdir, reg_method, '{:03d}_disp_map_fig.png'.format(step)), show=False)
 
-    print('Summary\n=======\n')
-    print('\nAVG:\n' + str(pd.read_csv(metrics_file, sep=';', header=0).mean(axis=0)) + '\nSTD:\n' + str(
-        pd.read_csv(metrics_file, sep=';', header=0).std(axis=0)))
-    print('\n=======\n')
+    for k in metrics_file.keys():
+        print('Summary {}\n=======\n'.format(k))
+        print('\nAVG:\n' + str(pd.read_csv(metrics_file[k], sep=';', header=0).mean(axis=0)) + '\nSTD:\n' + str(
+            pd.read_csv(metrics_file[k], sep=';', header=0).std(axis=0)))
+        print('\n=======\n')

@@ -33,19 +33,25 @@ import voxelmorph as vxm
 import h5py
 import re
 import itertools
+import warnings
 
 
 def launch_train(dataset_folder, validation_folder, output_folder, model_file, gpu_num=0, lr=1e-4, rw=5e-3,
-                 simil=['ssim'], segm=['dice'], max_epochs=C.EPOCHS, prior_reg_w=5e-3, freeze_layers=None,
-                 acc_gradients=1, batch_size=16):
+                 simil=['ssim'], segm=['dice'], max_epochs=C.EPOCHS, early_stop_patience=1000, prior_reg_w=5e-3,
+                 freeze_layers=None, acc_gradients=1, batch_size=16, image_size=64,
+                 unet=[16, 32, 64, 128, 256], head=[16, 16]):
     # 0. Input checks
-    assert dataset_folder is not None and output_folder is not None and model_file is not None
-    assert '.h5' in model_file, 'The model must be an H5 file'
+    assert dataset_folder is not None and output_folder is not None
+    if model_file != '':
+        assert '.h5' in model_file, 'The model must be an H5 file'
 
     # 1. Load variables
     os.environ['CUDA_DEVICE_ORDER'] = C.DEV_ORDER
     os.environ['CUDA_VISIBLE_DEVICES'] = str(gpu_num)  # Check availability before running using 'nvidia-smi'
     C.GPU_NUM = str(gpu_num)
+
+    if batch_size != 1 and acc_gradients != 1:
+        warnings.warn('WARNING: Batch size and Accumulative gradient step are set!')
 
     if freeze_layers is not None:
         assert all(s in ['INPUT', 'OUTPUT', 'ENCODER', 'DECODER', 'TOP', 'BOTTOM'] for s in freeze_layers), \
@@ -63,8 +69,8 @@ def launch_train(dataset_folder, validation_folder, output_folder, model_file, g
     C.TRAINING_DATASET = dataset_folder  # dataset_copy.copy_dataset()
     C.VALIDATION_DATASET = validation_folder
     C.ACCUM_GRADIENT_STEP = acc_gradients
-    C.BATCH_SIZE = batch_size if C.ACCUM_GRADIENT_STEP == 1 else C.ACCUM_GRADIENT_STEP
-    C.EARLY_STOP_PATIENCE = 5 * (C.ACCUM_GRADIENT_STEP / 2 if C.ACCUM_GRADIENT_STEP != 1 else 1)
+    C.BATCH_SIZE = batch_size if C.ACCUM_GRADIENT_STEP == 1 else 1
+    C.EARLY_STOP_PATIENCE = early_stop_patience
     C.LEARNING_RATE = lr
     C.LIMIT_NUM_SAMPLES = None
     C.EPOCHS = max_epochs
@@ -105,7 +111,7 @@ def launch_train(dataset_folder, validation_folder, output_folder, model_file, g
     validation_generator = data_generator.get_validation_generator()
 
     image_input_shape = train_generator.get_data_shape()[-1][:-1]
-    image_output_shape = [64] * 3
+    image_output_shape = [image_size] * 3
     nb_labels = len(train_generator.get_segmentation_labels())
 
     # 3. Load model
@@ -116,10 +122,10 @@ def launch_train(dataset_folder, validation_folder, output_folder, model_file, g
     sess = tf.Session(config=config)
     tf.keras.backend.set_session(sess)
 
-    print('MODEL LOCATION: ', model_file)
-
-    enc_features = [16, 32, 32, 32]  # const.ENCODER_FILTERS
-    dec_features = [32, 32, 32, 32, 32, 16, 16]  # const.ENCODER_FILTERS[::-1]
+    # enc_features = [16, 32, 32, 32]     # const.ENCODER_FILTERS
+    # dec_features = [32, 32, 32, 32, 32, 16, 16]     # const.ENCODER_FILTERS[::-1]
+    enc_features = unet  # const.ENCODER_FILTERS
+    dec_features = enc_features[::-1] + head  # const.ENCODER_FILTERS[::-1]
     nb_features = [enc_features, dec_features]
     network = vxm.networks.VxmDenseSemiSupervisedSeg(inshape=image_output_shape,
                                                      nb_labels=nb_labels,
@@ -127,7 +133,9 @@ def launch_train(dataset_folder, validation_folder, output_folder, model_file, g
                                                      int_steps=0,
                                                      int_downsize=1,
                                                      seg_downsize=1)
-    network.load_weights(model_file, by_name=True)
+    if model_file != '':
+        print('MODEL LOCATION: ', model_file)
+        network.load_weights(model_file, by_name=True)
 
     # 4. Freeze/unfreeze model layers
     if freeze_layers is not None:

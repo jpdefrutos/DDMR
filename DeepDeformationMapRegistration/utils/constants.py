@@ -518,7 +518,7 @@ MAX_AUG_DEF = np.max(MAX_AUG_DEF_ISOT * IXI_DATASET_iso_to_cubic_scales)  # Scal
 MAX_AUG_ANGLE = np.max([np.arctan(np.tan(10*np.pi/180) * IXI_DATASET_iso_to_cubic_scales[1] / IXI_DATASET_iso_to_cubic_scales[0]) * 180 / np.pi,
                         np.arctan(np.tan(10*np.pi/180) * IXI_DATASET_iso_to_cubic_scales[2] / IXI_DATASET_iso_to_cubic_scales[1]) * 180 / np.pi,
                         np.arctan(np.tan(10*np.pi/180) * IXI_DATASET_iso_to_cubic_scales[2] / IXI_DATASET_iso_to_cubic_scales[0]) * 180 / np.pi])  # Scaled angles
-GAMMA_AUGMENTATION = False
+GAMMA_AUGMENTATION = True
 BRIGHTNESS_AUGMENTATION = False
 NUM_CONTROL_PTS_AUG = 10
 NUM_AUGMENTATIONS = 1

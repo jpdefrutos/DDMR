@@ -7,6 +7,7 @@ from skimage.measure import regionprops
 from DeepDeformationMapRegistration.layers.b_splines import interpolate_spline
 from DeepDeformationMapRegistration.utils.thin_plate_splines import ThinPlateSplines
 from tensorflow import squeeze
+from scipy.ndimage import zoom
 
 
 def try_mkdir(dir, verbose=True):
@@ -148,3 +149,34 @@ def segmentation_cardinal_to_ohe(segmentation):
     for ch, lbl in enumerate(np.unique(segmentation)[1:]):
         cpy[segmentation == lbl, ch] = 1
     return cpy
+
+
+def resize_displacement_map(displacement_map: np.ndarray, dest_shape: [list, np.ndarray, tuple], scale_trf: np.ndarray=None):
+    if scale_trf is None:
+        scale_trf = scale_transformation(displacement_map.shape, dest_shape)
+    else:
+        assert isinstance(scale_trf, np.ndarray) and scale_trf.shape == (4, 4), 'Invalid transformation: {}'.format(scale_trf)
+    zoom_factors = scale_trf.diagonal()
+    # First scale the values, so we cut down the number of multiplications
+    dm_resized = np.copy(displacement_map)
+    dm_resized[..., 0] *= zoom_factors[0]
+    dm_resized[..., 1] *= zoom_factors[1]
+    dm_resized[..., 2] *= zoom_factors[2]
+    # Then rescale using zoom
+    dm_resized = zoom(dm_resized, zoom_factors)
+    return dm_resized
+
+
+def scale_transformation(original_shape: [list, tuple, np.ndarray], dest_shape: [list, tuple, np.ndarray]) -> np.ndarray:
+    if isinstance(original_shape, (list, tuple)):
+        original_shape = np.asarray(original_shape, dtype=int)
+    if isinstance(dest_shape, (list, tuple)):
+        dest_shape = np.asarray(dest_shape, dtype=int)
+    original_shape = original_shape.astype(int)
+    dest_shape = dest_shape.astype(int)
+
+    trf = np.eye(4)
+    np.fill_diagonal(trf, [*np.divide(dest_shape, original_shape), 1])
+
+    return trf
+

@@ -182,14 +182,15 @@ class AugmentationLayer(kl.Layer):
         return tf.squeeze(disp_map, axis=0)
 
     def gamma_augmentation(self, in_img: tf.Tensor):
-        in_img += 1e-5  # To prvent NaNs
-        gamma = tf.random.uniform((), 0.5, 2, tf.float32)
+        in_img += 1e-5  # To prevent NaNs
+        f = tf.random.uniform((), -1, 1, tf.float32)  # gamma [0.5, 2]
+        gamma = tf.pow(2.0, f)
 
         return tf.clip_by_value(tf.pow(in_img, gamma), 0, 1)
 
     def brightness_augmentation(self, in_img: tf.Tensor):
-        c = tf.random.uniform((), 0.5, 2, tf.float32)
-        return tf.clip_by_value(c*in_img, 0, 1)
+        c = tf.random.uniform((), -0.2, 0.2, tf.float32)  # 20% shift
+        return tf.clip_by_value(c + in_img, 0, 1)
 
     def min_max_normalization(self, in_img: tf.Tensor):
         return tf.div(tf.subtract(in_img, tf.reduce_min(in_img)),
@@ -228,6 +229,7 @@ class AugmentationLayer(kl.Layer):
             except InvalidArgumentError as err:
                 # If the transformation raises a non-invertible error,
                 # try again until we get a valid transformation
+                tf.print('TPS non invertible matrix', output_stream=sys.stdout)
                 continue
             else:
                 valid_trf = True
