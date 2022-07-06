@@ -55,24 +55,28 @@ class DatasetCopy:
 class DisplacementMapInterpolator:
     def __init__(self,
                  image_shape=[64, 64, 64],
-                 method='rbf'):
+                 method='rbf',
+                 step=1):
         assert method in ['rbf', 'griddata', 'tf', 'tps'], "Method must be 'rbf' or 'griddata'"
         self.method = method
         self.image_shape = image_shape
+        self.step = step  # If to use every point or even N-th point
 
         self.grid = self.__regular_grid()
 
     def __regular_grid(self):
         xx = np.linspace(0, self.image_shape[0], self.image_shape[0], endpoint=False, dtype=np.uint16)
-        yy = np.linspace(0, self.image_shape[0], self.image_shape[0], endpoint=False, dtype=np.uint16)
-        zz = np.linspace(0, self.image_shape[0], self.image_shape[0], endpoint=False, dtype=np.uint16)
+        yy = np.linspace(0, self.image_shape[1], self.image_shape[1], endpoint=False, dtype=np.uint16)
+        zz = np.linspace(0, self.image_shape[2], self.image_shape[2], endpoint=False, dtype=np.uint16)
 
         xx, yy, zz = np.meshgrid(xx, yy, zz)
 
-        return np.stack([xx.flatten(), yy.flatten(), zz.flatten()], axis=0).T
+        return np.stack([xx[::self.step, ::self.step, ::self.step].flatten(),
+                         yy[::self.step, ::self.step, ::self.step].flatten(),
+                         zz[::self.step, ::self.step, ::self.step].flatten()], axis=0).T
 
     def __call__(self, disp_map, interp_points, backwards=False):
-        disp_map = disp_map.reshape([-1, 3])
+        disp_map = disp_map.squeeze()[::self.step, ::self.step, ::self.step, ...].reshape([-1, 3])
         grid_pts = self.grid.copy()
         if backwards:
             grid_pts = np.add(grid_pts, disp_map).astype(np.float32)
