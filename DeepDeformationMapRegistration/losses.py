@@ -41,7 +41,7 @@ class HausdorffDistanceErosion:
     def _erode(self, in_tensor):
         indiv_channels = tf.split(in_tensor, self.im_shape[-1], -1)
         res = list()
-        with tf.variable_scope('erode', reuse=tf.AUTO_REUSE):
+        with tf.compat.v1.variable_scope('erode', reuse=tf.AUTO_REUSE):
             for ch in indiv_channels:
                 res.append(self.conv(tf.expand_dims(ch, 0), self.kernel, [1] * (self.ndims + 2), 'SAME'))
         # out = -tf.nn.max_pool3d(-tf.expand_dims(in_tensor, 0), [3]*self.ndims, [1]*self.ndims, 'SAME', name='HDE_erosion')
@@ -790,7 +790,7 @@ class GeneralizedDICEScore:
 
         size_y_true = tf.reduce_sum(y_true, axis=1, name='GDICE_size_y_true')
         size_y_pred = tf.reduce_sum(y_pred, axis=1, name='GDICE_size_y_pred')
-        w = tf.div_no_nan(1., tf.pow(size_y_true, 2), name='GDICE_weight')
+        w = tf.math.divide_no_nan(1., tf.pow(size_y_true, 2), name='GDICE_weight')
         numerator = w * tf.reduce_sum(y_true * y_pred, axis=1)
         denominator = w * (size_y_true + size_y_pred)
         return tf.div_no_nan(2 * tf.reduce_sum(numerator, axis=-1), tf.reduce_sum(denominator, axis=-1))
