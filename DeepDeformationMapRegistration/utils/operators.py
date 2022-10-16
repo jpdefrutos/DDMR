@@ -63,3 +63,18 @@ def sample_unique(population, samples, tout=tf.int32):
     _, indices = tf.nn.top_k(z, samples)
     ret_val = tf.gather(population, indices)
     return tf.cast(ret_val, tout)
+
+
+def safe_medpy_metric(prediction, reference, nb_labels, metric_fnc, fnc_args: dict={}):
+    vals = list()
+    if 'voxelspacing' in fnc_args.keys():
+        diag = np.power(reference.shape[:-1] * fnc_args['voxelspacing'], 2)
+    else:
+        diag = np.power(reference.shape[:-1], 2)
+    diag = np.sqrt(np.sum(diag))
+    for l in range(nb_labels):
+        try:
+            vals.append(metric_fnc(prediction[..., l], reference[..., l], **fnc_args))
+        except RuntimeError:
+            vals.append(diag)
+    return vals

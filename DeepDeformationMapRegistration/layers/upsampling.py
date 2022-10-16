@@ -485,6 +485,8 @@ def UpInterpolate3D(x,
         nb, nr, nc, nd, nh = tf.TensorShape(x).as_list()
     elif data_format == 'channels_first':
         nb, nh, nr, nc, nd = tf.TensorShape(x).as_list()
+    else:
+        raise ValueError('Invalid option: ', data_format)
 
     r = size[0]
     c = size[1]
