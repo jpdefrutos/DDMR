@@ -8,7 +8,7 @@ sys.path.append(parentdir)  # PYTHON > 3.3 does not allow relative referencing
 
 from datetime import datetime
 
-from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping
+from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping, ReduceLROnPlateau
 from tensorflow.python.keras.utils import Progbar
 from tensorflow.keras import Input
 from tensorflow.keras.models import Model
@@ -27,6 +27,7 @@ from Brain_study.data_generator import BatchGenerator
 from Brain_study.utils import SummaryDictionary, named_logs
 
 import COMET.augmentation_constants as COMET_C
+from COMET.utils import freeze_layers_by_group
 
 import numpy as np
 import tensorflow as tf
@@ -40,7 +41,7 @@ import warnings
 def launch_train(dataset_folder, validation_folder, output_folder, model_file, gpu_num=0, lr=1e-4, rw=5e-3, simil='ssim',
                  segm='dice', max_epochs=C.EPOCHS, early_stop_patience=1000, freeze_layers=None,
                  acc_gradients=1, batch_size=16, image_size=64,
-                 unet=[16, 32, 64, 128, 256], head=[16, 16]):
+                 unet=[16, 32, 64, 128, 256], head=[16, 16], resume=None):
     # 0. Input checks
     assert dataset_folder is not None and output_folder is not None
     if model_file != '':
@@ -54,12 +55,16 @@ def launch_train(dataset_folder, validation_folder, output_folder, model_file, g
     if batch_size != 1 and acc_gradients != 1:
         warnings.warn('WARNING: Batch size and Accumulative gradient step are set!')
 
-    if freeze_layers is not None:
-        assert all(s in ['INPUT', 'OUTPUT', 'ENCODER', 'DECODER', 'TOP', 'BOTTOM'] for s in freeze_layers), \
-            'Invalid option for "freeze". Expected one or several of: INPUT, OUTPUT, ENCODER, DECODER, TOP, BOTTOM'
-        freeze_layers = [list(COMET_C.LAYER_RANGES[l]) for l in list(set(freeze_layers))]
-        if len(freeze_layers) > 1:
-            freeze_layers = list(itertools.chain.from_iterable(freeze_layers))
+    if resume is not None:
+        try:
+            assert os.path.exists(resume) and len(os.listdir(os.path.join(resume, 'checkpoints'))), 'Invalid directory: ' + resume
+            output_folder = resume
+            resume = True
+        except AssertionError:
+            output_folder = os.path.join(output_folder + '_' + datetime.now().strftime("%H%M%S-%d%m%Y"))
+            resume = False
+    else:
+        resume = False
 
     os.makedirs(output_folder, exist_ok=True)
     # dataset_copy = DatasetCopy(dataset_folder, os.path.join(output_folder, 'temp'))
@@ -159,34 +164,37 @@ def launch_train(dataset_folder, validation_folder, output_folder, model_file, g
         if model_file != '':
             network.load_weights(model_file, by_name=True)
             print('MODEL LOCATION: ', model_file)
+
+    resume_epoch = 0
+    if resume:
+        cp_dir = os.path.join(output_folder, 'checkpoints')
+        cp_file_list = [os.path.join(cp_dir, f) for f in os.listdir(cp_dir) if (f.startswith('checkpoint') and f.endswith('.h5'))]
+        if len(cp_file_list):
+            cp_file_list.sort()
+            checkpoint_file = cp_file_list[-1]
+            if os.path.exists(checkpoint_file):
+                network.load_weights(checkpoint_file, by_name=True)
+                print('Loaded checkpoint file: ' + checkpoint_file)
+                try:
+                    resume_epoch = int(re.match('checkpoint\.(\d+)-*.h5', os.path.split(checkpoint_file)[-1])[1])
+                except TypeError:
+                    # Checkpoint file has no epoch number in the name
+                    resume_epoch = 0
+                print('Resuming from epoch: {:d}'.format(resume_epoch))
+            else:
+                warnings.warn('Checkpoint file NOT found. Training from scratch')
+
     # 4. Freeze/unfreeze model layers
-    # freeze_layers = range(0, len(network.layers) - 8)  # Do not freeze the last layers after the UNet (8 last layers)
-    # for l in freeze_layers:
-    #     network.layers[l].trainable = False
-    # msg = "[INF]: Frozen layers {} to {}".format(0, len(network.layers) - 8)
-    # print(msg)
-    # log_file.write("INF: Frozen layers {} to {}".format(0, len(network.layers) - 8))
-    if freeze_layers is not None:
-        aux = list()
-        for r in freeze_layers:
-            for l in range(*r):
-                network.layers[l].trainable = False
-                aux.append(l)
-        aux.sort()
-        msg = "[INF]: Frozen layers {}".format(', '.join([str(a) for a in aux]))
+    _, frozen_layers = freeze_layers_by_group(network, freeze_layers)
+    if frozen_layers is not None:
+        msg = "[INF]: Frozen layers {}".format(', '.join([str(a) for a in frozen_layers]))
     else:
         msg = "[INF] None frozen layers"
     print(msg)
     log_file.write(msg)
-    # network.trainable = False  # Freeze the base model
-    # # Create a new model on top
-    # input_new_model = keras.Input(network.input_shape)
-    # x = base_model(input_new_model, training=False)
-    # x =
-    # network = keras.Model(input_new_model, x)
 
-    network.summary()
-    network.summary(print_fn=log_file.writelines)
+    network.summary(line_length=C.SUMMARY_LINE_LENGTH)
+    network.summary(line_length=C.SUMMARY_LINE_LENGTH, print_fn=log_file.writelines)
     #   Complete the model with the augmentation layer
     augm_train_input_shape = train_generator.get_data_shape()[-1]
     input_layer_train = Input(shape=augm_train_input_shape, name='input_train')
@@ -269,6 +277,7 @@ def launch_train(dataset_folder, validation_folder, output_folder, model_file, g
                                           save_best_only=True, monitor='val_loss', verbose=1, mode='min')
     callback_save_checkpoint = ModelCheckpoint(os.path.join(output_folder, 'checkpoints', 'checkpoint.h5'),
                                                save_weights_only=True, monitor='val_loss', verbose=0, mode='min')
+    callback_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10)
 
     losses = {'transformer': loss_fnc,
               'flow': vxm.losses.Grad('l2').loss}
@@ -281,7 +290,7 @@ def launch_train(dataset_folder, validation_folder, output_folder, model_file, g
     loss_weights = {'transformer': 1.,
                     'flow': rw}
 
-    optimizer = AdamAccumulated(C.ACCUM_GRADIENT_STEP, C.LEARNING_RATE)
+    optimizer = AdamAccumulated(accumulation_steps=C.ACCUM_GRADIENT_STEP, learning_rate=C.LEARNING_RATE)
     network.compile(optimizer=optimizer,
                     loss=losses,
                     loss_weights=loss_weights,
@@ -292,6 +301,7 @@ def launch_train(dataset_folder, validation_folder, output_folder, model_file, g
     callback_early_stop.set_model(network)
     callback_best_model.set_model(network)
     callback_save_checkpoint.set_model(network)
+    callback_lr.set_model(network)
 
     summary = SummaryDictionary(network, C.BATCH_SIZE)
     names = network.metrics_names
@@ -303,12 +313,14 @@ def launch_train(dataset_folder, validation_folder, output_folder, model_file, g
         callback_early_stop.on_train_begin()
         callback_best_model.on_train_begin()
         callback_save_checkpoint.on_train_begin()
+        callback_lr.on_train_begin()
 
-        for epoch in range(C.EPOCHS):
+        for epoch in range(resume_epoch, C.EPOCHS):
             callback_tensorboard.on_epoch_begin(epoch)
             callback_early_stop.on_epoch_begin(epoch)
             callback_best_model.on_epoch_begin(epoch)
             callback_save_checkpoint.on_epoch_begin(epoch)
+            callback_lr.on_epoch_begin(epoch)
             print("\nEpoch {}/{}".format(epoch, C.EPOCHS))
             print("TRAIN")
 
@@ -318,6 +330,7 @@ def launch_train(dataset_folder, validation_folder, output_folder, model_file, g
                 callback_best_model.on_train_batch_begin(step)
                 callback_save_checkpoint.on_train_batch_begin(step)
                 callback_early_stop.on_train_batch_begin(step)
+                callback_lr.on_train_batch_begin(step)
 
                 try:
                     fix_img, mov_img, fix_seg, mov_seg = augm_model_train.predict(in_batch)
@@ -351,6 +364,7 @@ def launch_train(dataset_folder, validation_folder, output_folder, model_file, g
                 callback_best_model.on_train_batch_end(step, named_logs(network, ret))
                 callback_save_checkpoint.on_train_batch_end(step, named_logs(network, ret))
                 callback_early_stop.on_train_batch_end(step, named_logs(network, ret))
+                callback_lr.on_train_batch_end(step, named_logs(network, ret))
                 progress_bar.update(step, zip(names, ret))
                 log_file.write('\t\tStep {:03d}: {}'.format(step, ret))
             val_values = progress_bar._values.copy()
@@ -384,10 +398,12 @@ def launch_train(dataset_folder, validation_folder, output_folder, model_file, g
             callback_best_model.on_epoch_end(epoch, epoch_summary)
             callback_save_checkpoint.on_epoch_end(epoch, epoch_summary)
             callback_early_stop.on_epoch_end(epoch, epoch_summary)
+            callback_lr.on_epoch_end(epoch, epoch_summary)
             print('End of epoch {}: '.format(epoch), ret, '\n')
 
         callback_tensorboard.on_train_end()
         callback_best_model.on_train_end()
         callback_save_checkpoint.on_train_end()
         callback_early_stop.on_train_end()
+        callback_lr.on_train_end()
 # 7. Wrap up

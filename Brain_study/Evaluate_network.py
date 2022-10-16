@@ -23,6 +23,7 @@ from DeepDeformationMapRegistration.losses import StructuralSimilarity_simplifie
 from DeepDeformationMapRegistration.ms_ssim_tf import MultiScaleStructuralSimilarity
 from DeepDeformationMapRegistration.utils.acummulated_optimizer import AdamAccumulated
 from DeepDeformationMapRegistration.utils.visualization import save_disp_map_img, plot_predictions
+from DeepDeformationMapRegistration.utils.misc import segmentation_ohe_to_cardinal
 from EvaluationScripts.Evaluate_class import EvaluationFigures, resize_pts_to_original_space, resize_img_to_original_space, resize_transformation
 from scipy.interpolate import RegularGridInterpolator
 from tqdm import tqdm
@@ -147,9 +148,9 @@ if __name__ == '__main__':
             dice = GeneralizedDICEScore(image_output_shape + [img_generator.get_data_shape()[2][-1]], num_labels=nb_labels).metric(fix_seg, pred_seg).eval()
             hd = HausdorffDistanceErosion(3, 10, im_shape=image_output_shape + [img_generator.get_data_shape()[2][-1]]).metric(fix_seg, pred_seg).eval()
 
-            pred_seg = np.argmax(pred_seg, axis=-1)[..., np.newaxis].astype(np.float32)
-            mov_seg = np.argmax(mov_seg, axis=-1)[..., np.newaxis].astype(np.float32)
-            fix_seg = np.argmax(fix_seg, axis=-1)[..., np.newaxis].astype(np.float32)
+            pred_seg = segmentation_ohe_to_cardinal(pred_seg).astype(np.float32)
+            mov_seg = segmentation_ohe_to_cardinal(mov_seg).astype(np.float32)
+            fix_seg = segmentation_ohe_to_cardinal(fix_seg).astype(np.float32)
 
             mov_coords = np.stack(np.meshgrid(*[np.arange(0, 64)]*3), axis=-1)
             dest_coords = mov_coords + disp_map[0, ...]
@@ -178,8 +179,8 @@ if __name__ == '__main__':
             plt.savefig(os.path.join(output_folder, '{:03d}_hist_mag_ssim_{:.03f}_dice_{:.03f}.png'.format(step, ssim, dice)))
             plt.close()
 
-            plot_predictions(fix_img, mov_img, disp_map, pred_img, os.path.join(output_folder, '{:03d}_figures.png'.format(step)), show=False)
-            plot_predictions(fix_seg, mov_seg, disp_map, pred_seg, os.path.join(output_folder, '{:03d}_figures_seg.png'.format(step)), show=False)
+            plot_predictions(img_batches=[fix_img, mov_img, pred_img], disp_map_batch=disp_map, seg_batches=[fix_seg, mov_seg, pred_seg], filename=os.path.join(output_folder, '{:03d}_figures_seg.png'.format(step)), show=False)
+            plot_predictions(img_batches=[fix_img, mov_img, pred_img], disp_map_batch=disp_map, filename=os.path.join(output_folder, '{:03d}_figures_img.png'.format(step)), show=False)
             save_disp_map_img(disp_map, 'Displacement map', os.path.join(output_folder, '{:03d}_disp_map_fig.png'.format(step)), show=False)
 
             progress_bar.set_description('SSIM {:.04f}\tDICE: {:.04f}'.format(ssim, dice))

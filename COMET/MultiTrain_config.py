@@ -9,6 +9,8 @@ from shutil import copy2
 import os
 from datetime import datetime
 import DeepDeformationMapRegistration.utils.constants as C
+import re
+from COMET.augmentation_constants import LAYER_SELECTION
 TRAIN_DATASET = '/mnt/EncryptedData1/Users/javier/ext_datasets/COMET_dataset/OSLO_COMET_CT/Formatted_128x128x128/train'
 
 err = list()
@@ -58,10 +60,11 @@ if __name__ == '__main__':
     except KeyError as err:
         froozen_layers = None
     except NameError as err:
-        froozen_layers = [trainConfig['freeze'].upper()]
+        froozen_layers = list(filter(lambda x: x != '', re.split(';|\s|,|,\s|;\s', trainConfig['freeze'].upper())))
+
     if froozen_layers is not None:
-        assert all(s in ['INPUT', 'OUTPUT', 'ENCODER', 'DECODER', 'TOP', 'BOTTOM'] for s in froozen_layers),\
-            'Invalid option for "freeze". Expected one or several of: INPUT, OUTPUT, ENCODER, DECODER, TOP, BOTTOM'
+        assert all(s in LAYER_SELECTION.keys() for s in froozen_layers), \
+            'Invalid option for "freeze". Expected one or several of: ' + ', '.join(LAYER_SELECTION.keys())
         froozen_layers = list(set(froozen_layers))  # Unique elements
 
     if augmentationConfig:
@@ -70,11 +73,20 @@ if __name__ == '__main__':
 
 
     # copy the configuration file to the destionation folder
-    os.makedirs(output_folder, exist_ok=True)
+    os.makedirs(output_folder, exist_ok=True) # TODO: move this within the "resume" if case, and bring here the creation of the resume-output folder!
     copy2(args.ini, os.path.join(output_folder, os.path.split(args.ini)[-1]))
 
-    unet = [int(x) for x in trainConfig['unet'].split(',')] if trainConfig['unet'] else [16, 32, 64, 128, 256]
-    head = [int(x) for x in trainConfig['head'].split(',')] if trainConfig['head'] else [16, 16]
+    try:
+        unet = [int(x) for x in trainConfig['unet'].split(',')] if trainConfig['unet'] else [16, 32, 64, 128, 256]
+        head = [int(x) for x in trainConfig['head'].split(',')] if trainConfig['head'] else [16, 16]
+    except KeyError as err:
+        unet = [16, 32, 64, 128, 256]
+        head = [16, 16]
+
+    try:
+        resume_checkpoint = trainConfig['resumeCheckpoint']
+    except KeyError as e:
+        resume_checkpoint = None
 
     launch_train(dataset_folder=datasetConfig['train'],
                  validation_folder=datasetConfig['validation'],
@@ -85,10 +97,12 @@ if __name__ == '__main__':
                  simil=simil,
                  segm=segm,
                  max_epochs=eval(trainConfig['epochs']),
+                 image_size=eval(trainConfig['imageSize']),
                  early_stop_patience=eval(trainConfig['earlyStopPatience']),
                  model_file=trainConfig['model'],
                  freeze_layers=froozen_layers,
                  acc_gradients=eval(trainConfig['accumulativeGradients']),
                  batch_size=eval(trainConfig['batchSize']),
                  unet=unet,
-                 head=head)
+                 head=head,
+                 resume=resume_checkpoint)

@@ -1,11 +1,12 @@
 import os, sys
+
 currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
 sys.path.append(parentdir)  # PYTHON > 3.3 does not allow relative referencing
 
 import numpy as np
 import tensorflow as tf
-from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping
+from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras import Input
 from tensorflow.keras.models import Model
 from tensorflow.python.keras.utils import Progbar
@@ -30,11 +31,14 @@ from Brain_study.utils import SummaryDictionary, named_logs
 
 import time
 import warnings
+import re
+import tqdm
 
 
 def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr=1e-4, rw=5e-3, simil='ssim', segm='hd',
                  acc_gradients=16, batch_size=1, max_epochs=10000, early_stop_patience=1000, image_size=64,
-                 unet=[16, 32, 64, 128, 256], head=[16, 16]):
+                 unet=[16, 32, 64, 128, 256], head=[16, 16], resume=None):
+
     assert dataset_folder is not None and output_folder is not None
 
     os.environ['CUDA_DEVICE_ORDER'] = C.DEV_ORDER
@@ -44,7 +48,16 @@ def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr
     if batch_size != 1 and acc_gradients != 1:
         warnings.warn('WARNING: Batch size and Accumulative gradient step are set!')
 
-    output_folder = os.path.join(output_folder + '_' + datetime.now().strftime("%H%M%S-%d%m%Y"))
+    if resume is not None:
+        try:
+            assert os.path.exists(resume) and len(os.listdir(os.path.join(resume, 'checkpoints'))), 'Invalid directory: ' + resume
+            output_folder = resume
+            resume = True
+        except AssertionError:
+            output_folder = os.path.join(output_folder + '_' + datetime.now().strftime("%H%M%S-%d%m%Y"))
+            resume = False
+    else:
+        resume = False
     os.makedirs(output_folder, exist_ok=True)
     log_file = open(os.path.join(output_folder, 'log.txt'), 'w')
     C.TRAINING_DATASET = dataset_folder
@@ -85,6 +98,10 @@ def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr
                                     directory_val=C.VALIDATION_DATASET)
 
     train_generator = data_generator.get_train_generator()
+
+    # for l in tqdm.tqdm(train_generator, smoothing=0):
+    #     pass
+    # exit()
     validation_generator = data_generator.get_validation_generator()
 
     image_input_shape = train_generator.get_data_shape()[1][:-1]
@@ -96,7 +113,7 @@ def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr
     config = tf.compat.v1.ConfigProto()  # device_count={'GPU':0})
     config.gpu_options.allow_growth = True
     config.log_device_placement = False  ## to log device placement (on which device the operation ran)
-    config.allow_soft_placement = True  # https://github.com/tensorflow/tensorflow/issues/30782
+    # config.allow_soft_placement = False  # https://github.com/tensorflow/tensorflow/issues/30782
     sess = tf.Session(config=config)
     tf.keras.backend.set_session(sess)
 
@@ -128,6 +145,27 @@ def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr
                                                      int_steps=0,
                                                      int_downsize=1,
                                                      seg_downsize=1)
+    network.summary(line_length=C.SUMMARY_LINE_LENGTH)
+    network.summary(line_length=C.SUMMARY_LINE_LENGTH, print_fn=log_file.writelines)
+
+    resume_epoch = 0
+    if resume:
+        cp_dir = os.path.join(output_folder, 'checkpoints')
+        cp_file_list = [os.path.join(cp_dir, f) for f in os.listdir(cp_dir) if (f.startswith('checkpoint') and f.endswith('.h5'))]
+        if len(cp_file_list):
+            cp_file_list.sort()
+            checkpoint_file = cp_file_list[-1]
+            if os.path.exists(checkpoint_file):
+                network.load_weights(checkpoint_file, by_name=True)
+                print('Loaded checkpoint file: ' + checkpoint_file)
+                try:
+                    resume_epoch = int(re.match('checkpoint\.(\d+)-*.h5', os.path.split(checkpoint_file)[-1])[1])
+                except TypeError:
+                    # Checkpoint file has no epoch number in the name
+                    resume_epoch = 0
+                print('Resuming from epoch: {:d}'.format(resume_epoch))
+            else:
+                warnings.warn('Checkpoint file NOT found. Training from scratch')
 
     # Compile the model
     SSIM_KER_SIZE = 5
@@ -190,8 +228,8 @@ def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr
 
     callback_best_model = ModelCheckpoint(os.path.join(output_folder, 'checkpoints', 'best_model.h5'),
                                           save_best_only=True, monitor='val_loss', verbose=1, mode='min')
-    # callback_save_model = ModelCheckpoint(os.path.join(output_folder, 'checkpoints', 'weights.{epoch:05d}-{val_loss:.2f}.h5'),
-    #                save_best_only=True, save_weights_only=True, monitor='val_loss', verbose=0, mode='min')
+    callback_save_model = ModelCheckpoint(os.path.join(output_folder, 'checkpoints', 'checkpoint.{epoch:05d}-{val_loss:.2f}.h5'),
+                   save_weights_only=True, monitor='val_loss', verbose=0, mode='min')
     # CSVLogger(train_log_name, ';'),
     # UpdateLossweights([haus_weight, dice_weight], [const.MODEL+'_resampler_seg', const.MODEL+'_resampler_seg'])
     callback_tensorboard = TensorBoard(log_dir=os.path.join(output_folder, 'tensorboard'),
@@ -200,6 +238,7 @@ def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr
                                        write_graph=True, write_grads=True
                                        )
     callback_early_stop = EarlyStopping(monitor='val_loss', verbose=1, patience=C.EARLY_STOP_PATIENCE, min_delta=0.00001)
+    callback_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10)
 
     # Compile the model
     optimizer = AdamAccumulated(C.ACCUM_GRADIENT_STEP, lr=C.LEARNING_RATE)
@@ -210,9 +249,9 @@ def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr
 
     callback_tensorboard.set_model(network)
     callback_best_model.set_model(network)
-    # callback_save_model.set_model(network)
+    callback_save_model.set_model(network)
     callback_early_stop.set_model(network)
-
+    callback_lr.set_model(network)
     summary = SummaryDictionary(network, C.BATCH_SIZE, C.ACCUM_GRADIENT_STEP)
     names = network.metrics_names  # It give both the loss and metric names
     log_file.write('\n\n[{}]\tINFO:\tStart training\n\n'.format(datetime.now().strftime('%H:%M:%S\t%d/%m/%Y')))
@@ -221,13 +260,14 @@ def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr
         callback_tensorboard.on_train_begin()
         callback_early_stop.on_train_begin()
         callback_best_model.on_train_begin()
-        # callback_save_model.on_train_begin()
-        for epoch in range(C.EPOCHS):
+        callback_save_model.on_train_begin()
+        callback_lr.on_train_begin()
+        for epoch in range(resume_epoch, C.EPOCHS):
             callback_tensorboard.on_epoch_begin(epoch)
             callback_early_stop.on_epoch_begin(epoch)
             callback_best_model.on_epoch_begin(epoch)
-            # callback_save_model.on_epoch_begin(epoch)
-
+            callback_save_model.on_epoch_begin(epoch)
+            callback_lr.on_epoch_begin(epoch)
             print("\nEpoch {}/{}".format(epoch, C.EPOCHS))
             print('TRAINING')
 
@@ -238,12 +278,13 @@ def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr
                 #print('Loaded in {} s'.format(time.time() - t0))
                 # callback_tensorboard.on_train_batch_begin(step)
                 callback_best_model.on_train_batch_begin(step)
-                # callback_save_model.on_train_batch_begin(step)
+                callback_save_model.on_train_batch_begin(step)
                 callback_early_stop.on_train_batch_begin(step)
-
+                callback_lr.on_train_batch_begin(step)
                 try:
                     t0 = time.time()
                     fix_img, mov_img, fix_seg, mov_seg = augm_model.predict(in_batch)
+
                     #print('Augmented in {} s'.format(time.time() - t0))
                     np.nan_to_num(fix_img, copy=False)
                     np.nan_to_num(mov_img, copy=False)
@@ -275,8 +316,9 @@ def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr
                 summary.on_train_batch_end(ret)
                 # callback_tensorboard.on_train_batch_end(step, named_logs(network, ret))
                 callback_best_model.on_train_batch_end(step, named_logs(network, ret))
-                # callback_save_model.on_train_batch_end(step, named_logs(network, ret))
+                callback_save_model.on_train_batch_end(step, named_logs(network, ret))
                 callback_early_stop.on_train_batch_end(step, named_logs(network, ret))
+                callback_lr.on_train_batch_end(step, named_logs(network, ret))
                 progress_bar.update(step, zip(names, ret))
                 log_file.write('\t\tStep {:03d}: {}'.format(step, ret))
                 t0 = time.time()
@@ -313,13 +355,14 @@ def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr
             callback_tensorboard.on_epoch_end(epoch, epoch_summary)
             callback_early_stop.on_epoch_end(epoch, epoch_summary)
             callback_best_model.on_epoch_end(epoch, epoch_summary)
-            # callback_save_model.on_epoch_end(epoch, named_logs(network, ret, True))
+            callback_save_model.on_epoch_end(epoch, epoch_summary)
+            callback_lr.on_epoch_end(epoch, epoch_summary)
 
         callback_tensorboard.on_train_end()
-        # callback_save_model.on_train_end()
+        callback_save_model.on_train_end()
         callback_best_model.on_train_end()
         callback_early_stop.on_train_end()
-
+        callback_lr.on_train_end()
 
 if __name__ == '__main__':
     os.environ['CUDA_DEVICE_ORDER'] = C.DEV_ORDER

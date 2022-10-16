@@ -62,6 +62,11 @@ if __name__ == '__main__':
     except KeyError as e:
         head = [16, 16]
 
+    try:
+        resume_checkpoint = trainConfig['resumeCheckpoint']
+    except KeyError as e:
+        resume_checkpoint = None
+
     launch_train(dataset_folder=datasetConfig['train'],
                  validation_folder=datasetConfig['validation'],
                  output_folder=output_folder,
@@ -75,4 +80,5 @@ if __name__ == '__main__':
                  early_stop_patience=eval(trainConfig['earlyStopPatience']),
                  unet=unet,
                  head=head,
+                 resume=resume_checkpoint,
                  **loss_config)

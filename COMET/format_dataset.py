@@ -30,7 +30,7 @@ SEG_DIRECTORY = '/mnt/EncryptedData1/Users/javier/ext_datasets/COMET_dataset/OSL
 IMG_NAME_PATTERN = '(.*).nii.gz'
 SEG_NAME_PATTERN = '(.*).nii.gz'
 
-OUT_DIRECTORY = '/mnt/EncryptedData1/Users/javier/ext_datasets/COMET_dataset/OSLO_COMET_CT/Formatted_128x128x128'
+OUT_DIRECTORY = '/mnt/EncryptedData1/Users/javier/ext_datasets/COMET_dataset/OSLO_COMET_CT/Formatted_128x128x128/w_bboxes'
 
 
 if __name__ == '__main__':
@@ -60,6 +60,7 @@ if __name__ == '__main__':
         seg = np.asarray(seg.dataobj)
 
         segs_are_ohe = bool(len(seg.shape) > 3 and seg.shape[3] > 1)
+        bbox = [0]*6
         if args.crop:
             parenchyma = regionprops(seg[..., 0])[0]
             bbox = np.asarray(parenchyma.bbox) + [*[-args.offset]*3, *[args.offset]*3]
@@ -72,10 +73,11 @@ if __name__ == '__main__':
         isot_shape = img.shape
 
         zoom_factors = (np.asarray([128]*3) / np.asarray(img.shape)).tolist()
-
+        img_isotropic = np.copy(img)
         img = zoom(img, zoom_factors, order=3)
         if args.dilate_segmentations:
             seg = binary_dilation(seg, binary_ball, iterations=1)
+        seg_isotropic = np.copy(seg)
         seg = zoom(seg, zoom_factors + [1]*(len(seg.shape) - len(img.shape)), order=0)
         zoom_file = zoom_file.append({'scale_i': zoom_factors[0],
                                       'scale_j': zoom_factors[1],
@@ -92,11 +94,15 @@ if __name__ == '__main__':
         h5_file = h5py.File(os.path.join(OUT_DIRECTORY, img_name + '.h5'), 'w')
 
         h5_file.create_dataset('image', data=img[..., np.newaxis], dtype=np.float32)
+        h5_file.create_dataset('image_isotropic', data=img_isotropic[..., np.newaxis], dtype=np.float32)
+        h5_file.create_dataset('segmentation_isotropic', data=seg_isotropic.astype(np.uint8), dtype=np.uint8)
         h5_file.create_dataset('segmentation', data=seg.astype(np.uint8), dtype=np.uint8)
         h5_file.create_dataset('segmentation_expanded', data=seg_expanded.astype(np.uint8), dtype=np.uint8)
         h5_file.create_dataset('segmentation_labels', data=np.unique(seg)[1:])  # Remove the 0 (background label)
         h5_file.create_dataset('isotropic_shape', data=isot_shape)
-
+        if args.crop:
+            h5_file.create_dataset('bounding_box_origin', data=bbox[:3])
+            h5_file.create_dataset('bounding_box_shape', data=bbox[3:] - bbox[:3])
         print('{}: Segmentation labels {}'.format(img_name, np.unique(seg)[1:]))
         h5_file.close()
 
