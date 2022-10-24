@@ -133,7 +133,7 @@ class AugmentationLayer(kl.Layer):
             mov_img = tf.zeros_like(fix_img)
             mov_segm = tf.zeros_like(fix_segm)
 
-            disp_map = tf.tile(tf.zeros_like(fix_img), [1, 1, 1, 1, 3])
+            disp_map = tf.tile(tf.zeros_like(fix_img), [1, 1, 1, 1, 3])  # TODO: change, don't use tile!!
 
             if self.out_img_shape is not None:
                 fix_img = self.downsize_image(fix_img)

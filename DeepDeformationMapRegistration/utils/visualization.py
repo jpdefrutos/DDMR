@@ -1,5 +1,5 @@
 import matplotlib
-#matplotlib.use('TkAgg')
+matplotlib.use('WebAgg')
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 import matplotlib.colors as mcolors
@@ -17,7 +17,7 @@ THRES = 0.9
 
 # COLOR MAPS
 chunks = np.linspace(0, 1, 10)
-cmap1 = plt.get_cmap('hsv', 4)
+cmap1 = plt.get_cmap('hsv', 30)
 # cmaplist = [cmap1(i) for i in range(cmap1.N)]
 cmaplist = [(1, 1, 1, 1), (0, 0, 1, 1), (230 / 255, 97 / 255, 1 / 255, 1), (128 / 255, 0 / 255, 32 / 255, 1)]
 cmaplist[0] = (1, 1, 1, 1.0)
@@ -33,6 +33,14 @@ colors = [(128 / 255, 0 / 255, 32 / 255, i) for i in chunks]
 cmap4 = mcolors.LinearSegmentedColormap.from_list('mycmap', colors, N=100)
 
 cmap_bin = cm.get_cmap('viridis', 3)  # viridis is the default colormap
+
+cmap_segs = np.asarray([mcolors.to_rgba(mcolors.CSS4_COLORS[c], 1) for c in mcolors.CSS4_COLORS.keys()])
+cmap_segs.sort()
+# rnd_idxs = [30, 17, 72, 90, 74, 39, 120, 63, 52,  79, 140, 68, 131, 109, 57, 49, 11, 132, 29, 46, 51, 26, 53,  7, 89, 47, 43, 121, 31, 28, 106, 92, 130, 117, 91, 118, 61,  5, 80, 93, 58, 133, 14, 98, 116, 76, 113, 111, 136, 142, 95, 122, 86, 77, 36, 97, 141, 115, 18, 81, 88, 87, 44, 146, 103, 67, 147, 48, 42, 83, 128, 65, 139, 69, 27, 135, 94, 134, 50, 19, 114,  0, 96, 10, 138, 75, 13, 12, 102, 32, 66, 16,  8, 73, 85, 145, 54, 37, 70, 143]
+# cmap_segs = cmap_segs[rnd_idxs]
+np.random.shuffle(cmap_segs)
+cmap_segs[0, -1] = 0
+cmap_segs = mcolors.ListedColormap(cmap_segs)
 
 
 def view_centerline_sample(sample: np.ndarray, dimensionality: int, ax=None, c=None, name=None):
@@ -321,7 +329,7 @@ def save_centreline_img(img, title, filename, fig=None):
     plt.close()
 
 
-def save_disp_map_img(disp_map, title, filename, affine_transf=False, fig=None, show=False):
+def save_disp_map_img(disp_map, title, filename, affine_transf=False, fig=None, show=False, step=1):
     if fig is not None:
         fig.clear()
         plt.figure(fig.number)
@@ -333,7 +341,7 @@ def save_disp_map_img(disp_map, title, filename, affine_transf=False, fig=None, 
     if dim == 2:
         ax_x = fig.add_subplot(131)
         ax_x.set_title('H displacement')
-        im_x = ax_x.imshow(disp_map[..., C.H_DISP])
+        im_x = ax_x.imshow(disp_map[..., ::step, ::step, C.H_DISP])
         ax_x.tick_params(axis='both',
                        which='both',
                        bottom=False,
@@ -344,7 +352,7 @@ def save_disp_map_img(disp_map, title, filename, affine_transf=False, fig=None, 
 
         ax_y = fig.add_subplot(132)
         ax_y.set_title('W displacement')
-        im_y = ax_y.imshow(disp_map[..., C.W_DISP])
+        im_y = ax_y.imshow(disp_map[..., ::step, ::step, C.W_DISP])
         ax_y.tick_params(axis='both',
                          which='both',
                          bottom=False,
@@ -371,7 +379,7 @@ def save_disp_map_img(disp_map, title, filename, affine_transf=False, fig=None, 
                     ax.text(i, j, transf_mat[i, j], ha="center", va="center", color="b")
 
         else:
-            c, d, s = _prepare_quiver_map(disp_map, dim=dim)
+            c, d, s = _prepare_quiver_map(disp_map, dim=dim, spc=step)
             im = ax.imshow(s, interpolation='none', aspect='equal')
             ax.quiver(c[C.H_DISP], c[C.W_DISP], d[C.H_DISP], d[C.W_DISP],
                       scale=C.QUIVER_PARAMS.arrow_scale)
@@ -386,7 +394,7 @@ def save_disp_map_img(disp_map, title, filename, affine_transf=False, fig=None, 
         fig.suptitle(title)
     else:
         ax = fig.add_subplot(111, projection='3d')
-        c, d, s = _prepare_quiver_map(disp_map[0, ...], dim=dim)
+        c, d, s = _prepare_quiver_map(disp_map[0, ...], dim=dim, spc=step)
         ax.quiver(c[C.H_DISP], c[C.W_DISP], c[C.D_DISP], d[C.H_DISP], d[C.W_DISP], d[C.D_DISP])
         _square_3d_plot(np.arange(0, dim_h-1), np.arange(0, dim_w-1), np.arange(0, dim_d-1), ax)
         fig.suptitle('Displacement map')
@@ -810,7 +818,12 @@ def plot_dataset_3d(img_sets):
     return fig
 
 
-def plot_predictions(fix_img_batch, mov_img_batch, disp_map_batch, pred_img_batch, filename='predictions', fig=None, show=False):
+def plot_predictions(img_batches, disp_map_batch, seg_batches=None, step=1, filename='predictions', fig=None, show=False):
+    fix_img_batch, mov_img_batch, pred_img_batch = img_batches
+    if seg_batches != None:
+        fix_seg_batch, mov_seg_batch, pred_seg_batch = seg_batches
+    else:
+        fix_seg_batch = mov_seg_batch = pred_seg_batch = None
     num_rows = fix_img_batch.shape[0]
     img_dim = len(fix_img_batch.shape) - 2
     img_size = fix_img_batch.shape[1:-1]
@@ -828,6 +841,10 @@ def plot_predictions(fix_img_batch, mov_img_batch, disp_map_batch, pred_img_batc
         fix_img_batch = fix_img_batch[:, selected_slice, ...]
         mov_img_batch = mov_img_batch[:, selected_slice, ...]
         pred_img_batch = pred_img_batch[:, selected_slice, ...]
+        if seg_batches != None:
+            fix_seg_batch = fix_seg_batch[:, selected_slice, ...]
+            mov_seg_batch = mov_seg_batch[:, selected_slice, ...]
+            pred_seg_batch = pred_seg_batch[:, selected_slice, ...]
         disp_map_batch = disp_map_batch[:, selected_slice, ..., 1:]  # Only the sagittal and longitudinal axes
         img_size = fix_img_batch.shape[1:-1]
     elif img_dim != 2:
@@ -836,16 +853,24 @@ def plot_predictions(fix_img_batch, mov_img_batch, disp_map_batch, pred_img_batc
     for row in range(num_rows):
         fix_img = fix_img_batch[row, :, :, 0].transpose()
         mov_img = mov_img_batch[row, :, :, 0].transpose()
-        disp_map = disp_map_batch[row, :, :, :].transpose((1, 0, 2))
         pred_img = pred_img_batch[row, :, :, 0].transpose()
-        ax[row, 0].imshow(fix_img, origin='lower')
+        if seg_batches != None:
+            fix_seg = fix_seg_batch[row, :, :, 0].transpose()
+            mov_seg= mov_seg_batch[row, :, :, 0].transpose()
+            pred_seg = pred_seg_batch[row, :, :, 0].transpose()
+        disp_map = disp_map_batch[row, :, :, :].transpose((1, 0, 2))
+        ax[row, 0].imshow(fix_img, origin='lower', cmap='gray')
+        if seg_batches != None:
+            ax[row, 0].imshow(fix_seg, origin='lower', cmap=cmap_segs)
         ax[row, 0].tick_params(axis='both',
                                which='both',
                                bottom=False,
                                left=False,
                                labelleft=False,
                                labelbottom=False)
-        ax[row, 1].imshow(mov_img, origin='lower')
+        ax[row, 1].imshow(mov_img, origin='lower', cmap='gray')
+        if seg_batches != None:
+            ax[row, 1].imshow(mov_seg, origin='lower', cmap=cmap_segs)
         ax[row, 1].tick_params(axis='both',
                                which='both',
                                bottom=False,
@@ -853,7 +878,7 @@ def plot_predictions(fix_img_batch, mov_img_batch, disp_map_batch, pred_img_batc
                                labelleft=False,
                                labelbottom=False)
 
-        c, d, s = _prepare_quiver_map(disp_map, spc=5)
+        c, d, s = _prepare_quiver_map(disp_map, spc=step)
         cx, cy = c
         dx, dy = d
         disp_map_color = _prepare_colormap(disp_map)
@@ -866,7 +891,9 @@ def plot_predictions(fix_img_batch, mov_img_batch, disp_map_batch, pred_img_batc
                                labelleft=False,
                                labelbottom=False)
 
-        ax[row, 3].imshow(mov_img, origin='lower')
+        ax[row, 3].imshow(mov_img, origin='lower', cmap='gray')
+        if seg_batches != None:
+            ax[row, 3].imshow(mov_seg, origin='lower', cmap=cmap_segs)
         ax[row, 3].quiver(cx, cy, dx, dy, units='dots', scale=1, color='w')
         ax[row, 3].tick_params(axis='both',
                                which='both',
@@ -875,7 +902,9 @@ def plot_predictions(fix_img_batch, mov_img_batch, disp_map_batch, pred_img_batc
                                labelleft=False,
                                labelbottom=False)
 
-        ax[row, 4].imshow(pred_img, origin='lower')
+        ax[row, 4].imshow(pred_img, origin='lower', cmap='gray')
+        if seg_batches != None:
+            ax[row, 4].imshow(pred_seg, origin='lower', cmap=cmap_segs)
         ax[row, 4].tick_params(axis='both',
                                which='both',
                                bottom=False,

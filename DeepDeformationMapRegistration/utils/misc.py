@@ -8,6 +8,7 @@ from DeepDeformationMapRegistration.layers.b_splines import interpolate_spline
 from DeepDeformationMapRegistration.utils.thin_plate_splines import ThinPlateSplines
 from tensorflow import squeeze
 from scipy.ndimage import zoom
+import tensorflow as tf
 
 
 def try_mkdir(dir, verbose=True):
@@ -55,24 +56,28 @@ class DatasetCopy:
 class DisplacementMapInterpolator:
     def __init__(self,
                  image_shape=[64, 64, 64],
-                 method='rbf'):
+                 method='rbf',
+                 step=1):
         assert method in ['rbf', 'griddata', 'tf', 'tps'], "Method must be 'rbf' or 'griddata'"
         self.method = method
         self.image_shape = image_shape
+        self.step = step  # If to use every point or even N-th point
 
         self.grid = self.__regular_grid()
 
     def __regular_grid(self):
         xx = np.linspace(0, self.image_shape[0], self.image_shape[0], endpoint=False, dtype=np.uint16)
-        yy = np.linspace(0, self.image_shape[0], self.image_shape[0], endpoint=False, dtype=np.uint16)
-        zz = np.linspace(0, self.image_shape[0], self.image_shape[0], endpoint=False, dtype=np.uint16)
+        yy = np.linspace(0, self.image_shape[1], self.image_shape[1], endpoint=False, dtype=np.uint16)
+        zz = np.linspace(0, self.image_shape[2], self.image_shape[2], endpoint=False, dtype=np.uint16)
 
         xx, yy, zz = np.meshgrid(xx, yy, zz)
 
-        return np.stack([xx.flatten(), yy.flatten(), zz.flatten()], axis=0).T
+        return np.stack([xx[::self.step, ::self.step, ::self.step].flatten(),
+                         yy[::self.step, ::self.step, ::self.step].flatten(),
+                         zz[::self.step, ::self.step, ::self.step].flatten()], axis=0).T
 
     def __call__(self, disp_map, interp_points, backwards=False):
-        disp_map = disp_map.reshape([-1, 3])
+        disp_map = disp_map.squeeze()[::self.step, ::self.step, ::self.step, ...].reshape([-1, 3])
         grid_pts = self.grid.copy()
         if backwards:
             grid_pts = np.add(grid_pts, disp_map).astype(np.float32)
@@ -115,15 +120,22 @@ class DisplacementMapInterpolator:
         return disp
 
 
-def get_segmentations_centroids(segmentations, ohe=True, expected_lbls=range(0, 28), missing_centroid=[np.nan]*3, brain_study=True):
+def get_segmentations_centroids(segmentations, ohe=True, expected_lbls=range(1, 28), missing_centroid=[np.nan]*3, brain_study=True):
     segmentations = np.squeeze(segmentations)
     if ohe:
-        segmentations = np.sum(segmentations, axis=-1).astype(np.uint8)
-        missing_lbls = set(expected_lbls) - set(np.unique(segmentations))
-        if brain_study:
-            segmentations += np.ones_like(segmentations)  # Regionsprops neglect the label 0. But we need it, so offset all labels by 1
+        segmentations = segmentation_ohe_to_cardinal(segmentations)
+        lbls = set(np.unique(segmentations)) - {0}  # Remove the 0 value returned by np.unique, no label
+        # missing_lbls = set(expected_lbls) - lbls
+        # if brain_study:
+        #     segmentations += np.ones_like(segmentations)  # Regionsprops neglect the label 0. But we need it, so offset all labels by 1
     else:
-        missing_lbls = set(expected_lbls) - set(np.unique(segmentations))
+        lbls = set(np.unique(segmentations)) if 0 in expected_lbls else set(np.unique(segmentations)) - {0}
+    missing_lbls = set(expected_lbls) - lbls
+
+    if 0 in expected_lbls:
+        segmentations += np.ones_like(segmentations)  # Regionsprops neglects the label 0. But we need it, so offset all labels by 1
+
+    segmentations = np.squeeze(segmentations)   # remove channel dimension, not needed anyway
 
     seg_props = regionprops(segmentations)
     centroids = np.asarray([c.centroid for c in seg_props]).astype(np.float32)
@@ -143,11 +155,15 @@ def segmentation_ohe_to_cardinal(segmentation):
     return np.argmax(cpy, axis=-1)[..., np.newaxis]
 
 
-def segmentation_cardinal_to_ohe(segmentation):
+def segmentation_cardinal_to_ohe(segmentation, labels_list: list = None):
     # Keep in mind that we don't handle the overlap between the segmentations!
-    cpy = np.tile(np.zeros_like(segmentation), (1, 1, 1, len(np.unique(segmentation)[1:])))
-    for ch, lbl in enumerate(np.unique(segmentation)[1:]):
-        cpy[segmentation == lbl, ch] = 1
+    #labels_list = np.unique(segmentation)[1:] if labels_list is None else labels_list
+    num_labels = len(labels_list)
+    expected_shape = segmentation.shape[:-1] + (num_labels,)
+    cpy = np.zeros(expected_shape, dtype=np.uint8)
+    seg_squeezed = np.squeeze(segmentation, axis=-1)
+    for ch, lbl in enumerate(labels_list):
+        cpy[seg_squeezed == lbl, ch] = 1
     return cpy
 
 
@@ -180,3 +196,50 @@ def scale_transformation(original_shape: [list, tuple, np.ndarray], dest_shape: 
 
     return trf
 
+
+class GaussianFilter:
+    def __init__(self, size, sigma, dim, num_channels, stride=None, batch: bool=True):
+        """
+        Gaussian filter
+        :param size: Kernel size
+        :param sigma: Sigma of the Gaussian filter.
+        :param dim: Data dimensionality. Must be {2, 3}.
+        :param num_channels: Number of channels of the image to filter.
+        """
+        self.size = size
+        self.dim = dim
+        self.sigma = float(sigma)
+        self.num_channels = num_channels
+        self.stride = size // 2 if stride is None else int(stride)
+        if batch:
+            self.stride = [1] + [self.stride] * self.dim + [1]   # No support for strides in the batch and channel dims
+        else:
+            self.stride = [self.stride] * self.dim + [1]    # No support for strides in the batch and channel dims
+
+        self.convDN = getattr(tf.nn, 'conv%dd' % dim)
+        self.__GF = None
+
+        self.__build_gaussian_filter()
+
+    def __build_gaussian_filter(self):
+        range_1d = tf.range(-(self.size/2) + 1, self.size//2 + 1)
+        g_1d = tf.math.exp(-1.0 * tf.pow(range_1d, 2) / (2. * tf.pow(self.sigma, 2)))
+        g_1d_expanded = tf.expand_dims(g_1d, -1)
+        iterator = tf.constant(1)
+        self.__GF = tf.while_loop(lambda iterator, g_1d: tf.less(iterator, self.dim),
+                                  lambda iterator, g_1d: (iterator + 1, tf.expand_dims(g_1d, -1) * tf.transpose(g_1d_expanded)),
+                                  [iterator, g_1d],
+                                  [iterator.get_shape(), tf.TensorShape(None)],  # Shape invariants
+                                  back_prop=False
+                                  )[-1]
+
+        self.__GF = tf.divide(self.__GF, tf.reduce_sum(self.__GF))  # Normalization
+        self.__GF = tf.reshape(self.__GF, (*[self.size]*self.dim, 1, 1))  # Add Ch_in and Ch_out for convolution
+        self.__GF = tf.tile(self.__GF, (*[1] * self.dim, self.num_channels, self.num_channels,))
+
+    def apply_filter(self, in_image):
+        return self.convDN(in_image, self.__GF, self.stride, 'SAME')
+
+    @property
+    def kernel(self):
+        return self.__GF

@@ -18,20 +18,23 @@ import pandas as pd
 import voxelmorph as vxm
 
 import DeepDeformationMapRegistration.utils.constants as C
+from DeepDeformationMapRegistration.utils.operators import min_max_norm, safe_medpy_metric
 from DeepDeformationMapRegistration.utils.nifti_utils import save_nifti
 from DeepDeformationMapRegistration.layers import AugmentationLayer, UncertaintyWeighting
 from DeepDeformationMapRegistration.losses import StructuralSimilarity_simplified, NCC, GeneralizedDICEScore, HausdorffDistanceErosion, target_registration_error
 from DeepDeformationMapRegistration.ms_ssim_tf import MultiScaleStructuralSimilarity
 from DeepDeformationMapRegistration.utils.acummulated_optimizer import AdamAccumulated
 from DeepDeformationMapRegistration.utils.visualization import save_disp_map_img, plot_predictions
+from DeepDeformationMapRegistration.utils.misc import resize_displacement_map, scale_transformation
 from DeepDeformationMapRegistration.utils.misc import DisplacementMapInterpolator, get_segmentations_centroids, segmentation_ohe_to_cardinal
 from EvaluationScripts.Evaluate_class import EvaluationFigures, resize_pts_to_original_space, resize_img_to_original_space, resize_transformation
-from scipy.interpolate import RegularGridInterpolator
+from scipy.ndimage import zoom
 from tqdm import tqdm
-
+import medpy.metric as medpy_metrics
 import h5py
 import re
 from Brain_study.data_generator import BatchGenerator
+from voxelmorph.tf.layers import SpatialTransformer
 
 import argparse
 
@@ -49,9 +52,10 @@ if __name__ == '__main__':
     parser.add_argument('-d', '--dir', nargs='+', type=str, help='Directory where ./checkpoints/best_model.h5 is located', default=None)
     parser.add_argument('--gpu', type=int, help='GPU', default=0)
     parser.add_argument('--dataset', type=str, help='Dataset to run predictions on',
-                        default='/mnt/EncryptedData1/Users/javier/ext_datasets/IXI_dataset/T1/training')
+                        default='/mnt/EncryptedData1/Users/javier/ext_datasets/IXI_dataset/T1/test')
     parser.add_argument('--erase', type=bool, help='Erase the content of the output folder', default=False)
     parser.add_argument('--outdirname', type=str, default='Evaluate')
+
     args = parser.parse_args()
     if args.model is not None:
         assert '.h5' in args.model[0], 'No checkpoint file provided, use -d/--dir instead'
@@ -83,8 +87,8 @@ if __name__ == '__main__':
     config.log_device_placement = False  ## to log device placement (on which device the operation ran)
     config.allow_soft_placement = True
 
-    sess = tf.Session(config=config)
-    tf.keras.backend.set_session(sess)
+    sess = tf.compat.v1.Session(config=config)
+    tf.compat.v1.keras.backend.set_session(sess)
 
     # Loss and metric functions. Common to all models
     loss_fncs = [StructuralSimilarity_simplified(patch_size=2, dim=3, dynamic_range=1.).loss,
@@ -101,10 +105,10 @@ if __name__ == '__main__':
                    GeneralizedDICEScore(image_output_shape + [nb_labels], num_labels=nb_labels).metric_macro]
 
     ### METRICS GRAPH ###
-    fix_img_ph = tf.placeholder(tf.float32, (1, *image_output_shape, 1), name='fix_img')
-    pred_img_ph = tf.placeholder(tf.float32, (1, *image_output_shape, 1), name='pred_img')
-    fix_seg_ph = tf.placeholder(tf.float32, (1, *image_output_shape, nb_labels), name='fix_seg')
-    pred_seg_ph = tf.placeholder(tf.float32, (1, *image_output_shape, nb_labels), name='pred_seg')
+    fix_img_ph = tf.compat.v1.placeholder(tf.float32, (1, None, None, None, 1), name='fix_img')
+    pred_img_ph = tf.compat.v1.placeholder(tf.float32, (1, None, None, None, 1), name='pred_img')
+    fix_seg_ph = tf.compat.v1.placeholder(tf.float32, (1, None, None, None, nb_labels), name='fix_seg')
+    pred_seg_ph = tf.compat.v1.placeholder(tf.float32, (1, None, None, None, nb_labels), name='pred_seg')
 
     ssim_tf = metric_fncs[0](fix_img_ph, pred_img_ph)
     ncc_tf = metric_fncs[1](fix_img_ph, pred_img_ph)
@@ -118,7 +122,7 @@ if __name__ == '__main__':
     # Needed for VxmDense type of network
     warp_segmentation = vxm.networks.Transform(image_output_shape, interp_method='nearest', nb_feats=nb_labels)
 
-    dm_interp = DisplacementMapInterpolator(image_output_shape, 'griddata')
+    dm_interp = DisplacementMapInterpolator(image_output_shape, 'griddata', step=4)
 
     for MODEL_FILE, DATA_ROOT_DIR in zip(MODEL_FILE_LIST, DATA_ROOT_DIR_LIST):
         print('MODEL LOCATION: ', MODEL_FILE)
@@ -171,6 +175,8 @@ if __name__ == '__main__':
                     fix_seg = f['fix_segmentations'][:][np.newaxis, ...].astype(np.float32)
                     mov_seg = f['mov_segmentations'][:][np.newaxis, ...].astype(np.float32)
                     fix_centroids = f['fix_centroids'][:]
+                    isotropic_shape = f['isotropic_shape'][:]
+                    voxel_size = np.divide(fix_img.shape[1:-1], isotropic_shape)
 
                 if network.name == 'vxm_dense_semi_supervised_seg':
                     t0 = time.time()
@@ -182,29 +188,42 @@ if __name__ == '__main__':
                     pred_seg = warp_segmentation.predict([mov_seg, disp_map])
                     t1 = time.time()
 
-                mov_centroids, missing_lbls = get_segmentations_centroids(mov_seg[0, ...], ohe=True, expected_lbls=range(0, 28))
+                pred_img = min_max_norm(pred_img)
+                mov_centroids, missing_lbls = get_segmentations_centroids(mov_seg[0, ...], ohe=True, expected_lbls=range(1, nb_labels + 1))
                 # pred_centroids = dm_interp(disp_map, mov_centroids, backwards=True)  # with tps, it returns the pred_centroids directly
                 pred_centroids = dm_interp(disp_map, mov_centroids, backwards=True) + mov_centroids
 
+                # Up sample the segmentation masks to isotropic resolution
+                zoom_factors = np.diag(scale_transformation(image_output_shape, isotropic_shape))
+                pred_seg_isot = zoom(pred_seg[0, ...], zoom_factors, order=0)[np.newaxis, ...]
+                fix_seg_isot = zoom(fix_seg[0, ...], zoom_factors, order=0)[np.newaxis, ...]
+
+                pred_img_isot = zoom(pred_img[0, ...], zoom_factors, order=3)[np.newaxis, ...]
+                fix_img_isot = zoom(fix_img[0, ...], zoom_factors, order=3)[np.newaxis, ...]
+
                 # I need the labels to be OHE to compute the segmentation metrics.
-                dice, hd, dice_macro = sess.run([dice_tf, hd_tf, dice_macro_tf], {'fix_seg:0': fix_seg, 'pred_seg:0': pred_seg})
+                # dice, hd, dice_macro = sess.run([dice_tf, hd_tf, dice_macro_tf], {'fix_seg:0': fix_seg, 'pred_seg:0': pred_seg})
+                dice = np.mean([medpy_metrics.dc(pred_seg_isot[0, ..., l], fix_seg_isot[0, ..., l]) / np.sum(fix_seg_isot[0, ..., l]) for l in range(nb_labels)])
+                hd = np.mean(safe_medpy_metric(pred_seg_isot[0, ...], fix_seg_isot[0, ...], nb_labels, medpy_metrics.hd, {'voxelspacing': voxel_size}))
+                dice_macro = np.mean([medpy_metrics.dc(pred_seg_isot[0, ..., l], fix_seg_isot[0, ..., l]) for l in range(nb_labels)])
 
                 pred_seg_card = segmentation_ohe_to_cardinal(pred_seg).astype(np.float32)
                 mov_seg_card = segmentation_ohe_to_cardinal(mov_seg).astype(np.float32)
                 fix_seg_card = segmentation_ohe_to_cardinal(fix_seg).astype(np.float32)
 
-                ssim, ncc, mse, ms_ssim = sess.run([ssim_tf, ncc_tf, mse_tf, ms_ssim_tf], {'fix_img:0': fix_img, 'pred_img:0': pred_img})
-                ms_ssim = ms_ssim[0]
+                ssim, ncc, mse, ms_ssim = sess.run([ssim_tf, ncc_tf, mse_tf, ms_ssim_tf], {'fix_img:0': fix_img_isot, 'pred_img:0': pred_img_isot})
+                ssim = np.mean(ssim)    # returns a list of values, which correspond to the ssim of each patch
+                ms_ssim = ms_ssim[0]    # returns an array of shape (1,)
 
                 # Rescale the points back to isotropic space, where we have a correspondence voxel <-> mm
-                upsample_scale = 128 / 64
-                fix_centroids_isotropic = fix_centroids * upsample_scale
+                # upsample_scale = 128 / 64
+                fix_centroids_isotropic = fix_centroids * voxel_size
                 # mov_centroids_isotropic = mov_centroids * upsample_scale
-                pred_centroids_isotropic = pred_centroids * upsample_scale
+                pred_centroids_isotropic = pred_centroids * voxel_size
 
-                fix_centroids_isotropic = np.divide(fix_centroids_isotropic, C.IXI_DATASET_iso_to_cubic_scales)
-                # mov_centroids_isotropic = np.divide(mov_centroids_isotropic, C.IXI_DATASET_iso_to_cubic_scales)
-                pred_centroids_isotropic = np.divide(pred_centroids_isotropic, C.IXI_DATASET_iso_to_cubic_scales)
+                # fix_centroids_isotropic = np.divide(fix_centroids_isotropic, C.IXI_DATASET_iso_to_cubic_scales)
+                # # mov_centroids_isotropic = np.divide(mov_centroids_isotropic, C.IXI_DATASET_iso_to_cubic_scales)
+                # pred_centroids_isotropic = np.divide(pred_centroids_isotropic, C.IXI_DATASET_iso_to_cubic_scales)
                 # Now we can measure the TRE in mm
                 tre_array = target_registration_error(fix_centroids_isotropic, pred_centroids_isotropic, False).eval()
                 tre = np.mean([v for v in tre_array if not np.isnan(v)])
@@ -235,14 +254,20 @@ if __name__ == '__main__':
                 # plt.savefig(os.path.join(output_folder, '{:03d}_hist_mag_ssim_{:.03f}_dice_{:.03f}.png'.format(step, ssim, dice)))
                 # plt.close()
 
-                plot_predictions(fix_img, mov_img, disp_map, pred_img, os.path.join(output_folder, '{:03d}_figures.png'.format(step)), show=False)
-                plot_predictions(fix_seg, mov_seg, disp_map, pred_seg, os.path.join(output_folder, '{:03d}_figures_seg.png'.format(step)), show=False)
-                save_disp_map_img(disp_map, 'Displacement map', os.path.join(output_folder, '{:03d}_disp_map_fig.png'.format(step)), show=False)
+                plot_predictions(img_batches=[fix_img, mov_img, pred_img], disp_map_batch=disp_map, seg_batches=[fix_seg_card, mov_seg_card, pred_seg_card], filename=os.path.join(output_folder, '{:03d}_figures_seg.png'.format(step)), show=False, step=16)
+                plot_predictions(img_batches=[fix_img, mov_img, pred_img], disp_map_batch=disp_map, filename=os.path.join(output_folder, '{:03d}_figures_img.png'.format(step)), show=False, step=16)
+                save_disp_map_img(disp_map, 'Displacement map', os.path.join(output_folder, '{:03d}_disp_map_fig.png'.format(step)), show=False, step=16)
 
                 progress_bar.set_description('SSIM {:.04f}\tDICE: {:.04f}'.format(ssim, dice))
 
         print('Summary\n=======\n')
-        print(pd.read_csv(metrics_file, sep=';', header=0).mean(axis=0))
+        metrics_df = pd.read_csv(metrics_file, sep=';', header=0)
+        print('\nAVG:\n')
+        print(metrics_df.mean(axis=0))
+        print('\nSTD:\n')
+        print(metrics_df.std(axis=0))
+        print('\nHD95perc:\n')
+        print(metrics_df['HD'].describe(percentiles=[.95]))
         print('\n=======\n')
         tf.keras.backend.clear_session()
         # sess.close()

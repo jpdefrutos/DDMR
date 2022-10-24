@@ -1,5 +1,5 @@
 import warnings
-
+import time
 import numpy as np
 from tensorflow import keras
 import os
@@ -14,6 +14,7 @@ import tensorflow as tf
 
 import DeepDeformationMapRegistration.utils.constants as C
 from DeepDeformationMapRegistration.utils.operators import min_max_norm
+from DeepDeformationMapRegistration.utils.misc import segmentation_cardinal_to_ohe
 from DeepDeformationMapRegistration.utils.thin_plate_splines import ThinPlateSplines
 from voxelmorph.tf.layers import SpatialTransformer
 from Brain_study.format_dataset import SEGMENTATION_NR2LBL_LUT, SEGMENTATION_LBL2NR_LUT
@@ -21,6 +22,10 @@ from Brain_study.format_dataset import SEGMENTATION_NR2LBL_LUT, SEGMENTATION_LBL
 from tensorflow.python.keras.preprocessing.image import Iterator
 from tensorflow.python.keras.utils import Sequence
 import sys
+
+from collections import defaultdict
+
+from Brain_study.format_dataset import SEGMENTATION_LOC
 
 #import concurrent.futures
 #import multiprocessing as mp
@@ -34,13 +39,15 @@ class BatchGenerator:
                  split=0.7,
                  combine_segmentations=True,
                  labels=['all'],
-                 directory_val=None):
+                 directory_val=None,
+                 return_isotropic_shape=False):
         self.file_directory = directory
         self.batch_size = batch_size
         self.combine_segmentations = combine_segmentations
         self.labels = labels
         self.shuffle = shuffle
         self.split = split
+        self.return_isotropic_shape=return_isotropic_shape
 
         if directory_val is None:
             self.file_list = [os.path.join(directory, f) for f in os.listdir(directory) if f.endswith(('h5', 'hd5'))]
@@ -48,11 +55,11 @@ class BatchGenerator:
             self.num_samples = len(self.file_list)
             training_samples = self.file_list[:int(self.num_samples * self.split)]
 
-            self.train_iter = BatchIterator(training_samples, batch_size, shuffle, combine_segmentations, labels)
+            self.train_iter = BatchIterator(training_samples, batch_size, shuffle, combine_segmentations, labels, return_isotropic_shape=return_isotropic_shape)
             if self.split < 1.:
                 validation_samples = list(set(self.file_list) - set(training_samples))
                 self.validation_iter = BatchIterator(validation_samples, batch_size, shuffle, combine_segmentations, ['all'],
-                                                     validation=True)
+                                                     validation=True, return_isotropic_shape=return_isotropic_shape)
             else:
                 self.validation_iter = None
         else:
@@ -66,7 +73,7 @@ class BatchGenerator:
             self.file_list = training_samples + validation_samples
 
             self.train_iter = BatchIterator(training_samples, batch_size, shuffle, combine_segmentations, labels)
-            self.validation_iter = BatchIterator(validation_samples, batch_size, shuffle, combine_segmentations, ['all'],
+            self.validation_iter = BatchIterator(validation_samples, batch_size, shuffle, combine_segmentations, labels,
                                                  validation=True)
 
     def get_train_generator(self):
@@ -92,7 +99,8 @@ ALL_LABELS_LOC = {label: loc for label, loc in zip(ALL_LABELS, range(0, len(ALL_
 
 class BatchIterator(Sequence):
     def __init__(self, file_list, batch_size, shuffle, combine_segmentations=True, labels=['all'],
-                                            zero_grads=[64, 64, 64, 3], validation=False, **kwargs):
+                                            zero_grads=[64, 64, 64, 3], validation=False, sequential_labels=True,
+                 return_isotropic_shape=False, **kwargs):
         # super(BatchIterator, self).__init__(n=len(file_list),
         #                                     batch_size=batch_size,
         #                                     shuffle=shuffle,
@@ -103,30 +111,50 @@ class BatchIterator(Sequence):
         self.file_list = file_list
         self.combine_segmentations = combine_segmentations
         self.labels = labels
-        self.zero_grads = zero_grads
+        self.zero_grads = np.zeros(zero_grads)
         self.idx_list = np.arange(0, len(self.file_list))
         self.validation = validation
+        self.sequential_labels = sequential_labels
+        self.return_isotropic_shape = return_isotropic_shape
         self._initialize()
         self.shuffle_samples()
 
     def _initialize(self):
-        with h5py.File(self.file_list[0], 'r') as f:
-            self.image_shape = list(f['image'][:].shape)
-            self.segm_shape = list(f['segmentation'][:].shape)
-            if not self.combine_segmentations:
-                self.segm_shape[-1] = len(f['segmentation_labels'][:]) if self.labels[0].lower() == 'all' else len(self.labels)
-
-        self.batch_shape = self.image_shape.copy()
-        if self.labels[0].lower() != 'none':
-            self.batch_shape[-1] = 2 if self.combine_segmentations else 1 + self.segm_shape[-1]  # +1 because we have the fix and the moving images
-
+        if (isinstance(self.labels[0], str) and self.labels[0].lower() != 'none'):
             if self.labels[0] != 'all':
-                if isinstance(self.labels[0], str):
-                    self.labels = [SEGMENTATION_LBL2NR_LUT[lbl] for lbl in self.labels]
+                # Labels are tag names. Convert to numeric and check if the expected labels are in sequence or not
+                self.labels = [SEGMENTATION_LBL2NR_LUT[lbl] for lbl in self.labels]
+                if not self.sequential_labels:
+                    self.labels = [SEGMENTATION_LOC[lbl] for lbl in self.labels]
+                    self.labels_dict = lambda x: SEGMENTATION_LOC[x] if x in self.labels else 0
+                else:
+                    self.labels_dict = lambda x: ALL_LABELS_LOC[x] if x in self.labels else 0
+            else:
+                # Use all labels
+                if self.sequential_labels:
+                    self.labels = list(set(SEGMENTATION_LOC.values()))
+                    self.labels_dict = lambda x: SEGMENTATION_LOC[x] if x else 0
+                else:
+                    self.labels = list(ALL_LABELS)
+                    self.labels_dict = lambda x: ALL_LABELS_LOC[x] if x in self.labels else 0
+        elif hasattr(self.labels[0], 'lower') and self.labels[0].lower() == 'none':
+            # self.labels = list()
+            self.labels_dict = dict()
+        else:
+            assert np.all([isinstance(lbl, (int, float)) for lbl in self.labels]), "Labels must be a str, int or float"
+            # Nothing to do, the self.labels contains a list of numbers
 
         self.num_steps = len(self.file_list) // self.batch_size + (1 if len(self.file_list) % self.batch_size else 0)
         #self.executor = concurrent.futures.ProcessPoolExecutor(max_workers=self.batch_size)
         #self.mp_pool = mp.Pool(self.batch_size)
+
+        with h5py.File(self.file_list[0], 'r') as f:
+            self.image_shape = list(f['image'][:].shape)
+            self.segm_shape = self.image_shape.copy()
+            self.segm_shape[-1] = len(self.labels) if not self.combine_segmentations else 1
+
+        self.batch_shape = self.image_shape.copy()
+        self.batch_shape[-1] = self.image_shape[-1] + self.segm_shape[-1]
 
     def shuffle_samples(self):
         np.random.shuffle(self.idx_list)
@@ -137,7 +165,7 @@ class BatchIterator(Sequence):
     def _filter_segmentations(self, segm, segm_labels):
         if self.combine_segmentations:
             # TODO
-            warnings.warn('Cannot select labels when combinine_segmentations options is active')
+            warnings.warn('Cannot select labels when combine_segmentations options is active')
         if self.labels[0] != 'all':
             if set(self.labels).issubset(set(segm_labels)):
                 # If labels in self.labels are in segm
@@ -155,31 +183,38 @@ class BatchIterator(Sequence):
     def _load_sample(self, file_path):
         with h5py.File(file_path, 'r') as f:
             img = f['image'][:]
-            segm_labels = f['segmentation_labels'][:]
-            if self.combine_segmentations:
-                segm = f['segmentation'][:]
-            else:
-                segm = f['segmentation_expanded'][:]
-                if segm.shape[-1] != self.segm_shape[-1]:
-                    aux = np.zeros(self.segm_shape)
-                    aux[..., :segm.shape[-1]] = segm     # Ensure the same shape in case there are missing labels in aux
-                    segm = aux
-                # TODO: selection label segm = aux[..., self.labels]  but:
-                #       what if aux does not have a label in self.labels??
+            segm = f['segmentation'][:]
+            isot_shape = f['isotropic_shape'][:]
 
-        if self.labels[0].lower() != 'none' or self.validation:  # I expect to ask for the segmentations during val
-            segm = self._filter_segmentations(segm, segm_labels)
+        if not self.combine_segmentations:
+            if self.sequential_labels:
+                # TODO: I am assuming I want all the labels
+                segm = np.squeeze(np.eye(len(self.labels))[segm])
+            else:
+                lbls_list = list(ALL_LABELS) if self.labels[0] == 'all' else self.labels
+                segm = segmentation_cardinal_to_ohe(segm, lbls_list)  # Filtering is done here
+            #     aux = np.zeros(self.segm_shape)
+            #     aux[..., :segm.shape[-1]] = segm     # Ensure the same shape in case there are missing labels in aux
+            #     segm = aux
+            # TODO: selection label segm = aux[..., self.labels]  but:
+            #       what if aux does not have a label in self.labels??
+
+        img = np.asarray(img, dtype=np.float32)
+        segm = np.asarray(segm, dtype=np.float32)
+        if not isinstance(self.labels[0], str) or self.labels[0].lower() != 'none' or self.validation:  # I expect to ask for the segmentations during val
+            # segm = self._filter_segmentations(segm, segm_labels)
 
             if self.validation:
-                ret_val = np.concatenate([img, segm], axis=-1), (img, segm, np.zeros(self.zero_grads))
+                ret_val = np.concatenate([img, segm], axis=-1), (img, segm, self.zero_grads), isot_shape
             else:
-                ret_val = np.concatenate([img, segm], axis=-1), (img, np.zeros(self.zero_grads))
+                ret_val = np.concatenate([img, segm], axis=-1), (img, self.zero_grads), isot_shape
         else:
-            ret_val = img, (img, np.zeros(self.zero_grads))
+            ret_val = img, (img, self.zero_grads), isot_shape
         return ret_val
 
     def __getitem__(self, idx):
         in_batch = list()
+        isotropic_shape = list()
         # out_batch = list()
 
         batch_idxs = self.idx_list[idx * self.batch_size:(idx + 1) * self.batch_size]
@@ -193,14 +228,22 @@ class BatchIterator(Sequence):
         #         # out_batch.append(i)
         # else:
             # No need for multithreading, we are loading a single file
-        for f in file_list:
-            b, i = self._load_sample(f)
+        # in_batch = np.zeros([self.batch_size] + self.batch_shape, dtype=np.float32)
+        for batch_idx, f in enumerate(file_list):
+            b, i, isot_shape = self._load_sample(f)
+            # in_batch[batch_idx, :, :, :, :] = b
+            if self.return_isotropic_shape:
+                isotropic_shape.append(isot_shape)
             in_batch.append(b)
             # out_batch.append(i)
 
-        in_batch = np.asarray(in_batch)
+        in_batch = np.asarray(in_batch, dtype=np.float32)
+        ret_val = (in_batch, in_batch)
+        if self.return_isotropic_shape:
+            isotropic_shape = np.asarray(isotropic_shape, dtype=np.int)
+            ret_val += (isotropic_shape,)
         # out_batch = np.asarray(out_batch)
-        return in_batch, in_batch
+        return ret_val
 
     def __iter__(self):
         """Create a generator that iterate over the Sequence."""
@@ -217,9 +260,7 @@ class BatchIterator(Sequence):
         if self.combine_segmentations:
             labels = [1]
         else:
-            with h5py.File(self.file_list[0], 'r') as f:
-                labels = np.unique(f['segmentation'][:])
-            labels = np.sort(labels)[1:]  # Ignore the background
+            labels = self.labels
         return labels
 
 

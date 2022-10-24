@@ -8,7 +8,7 @@ sys.path.append(parentdir)  # PYTHON > 3.3 does not allow relative referencing
 import numpy as np
 import tensorflow as tf
 
-from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping
+from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStopping, ReduceLROnPlateau
 from tensorflow.keras import Input
 from tensorflow.keras.models import Model
 from tensorflow.python.keras.utils import Progbar
@@ -32,11 +32,12 @@ from Brain_study.utils import SummaryDictionary, named_logs
 
 from tqdm import tqdm
 from datetime import datetime
+import re
 
 
 def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr=1e-4, rw=5e-3, simil='ssim',
                  acc_gradients=16, batch_size=1, max_epochs=10000, early_stop_patience=1000, image_size=64,
-                 unet=[16, 32, 64, 128, 256], head=[16, 16]):
+                 unet=[16, 32, 64, 128, 256], head=[16, 16], resume=None):
     assert dataset_folder is not None and output_folder is not None
 
     os.environ['CUDA_DEVICE_ORDER'] = C.DEV_ORDER
@@ -46,7 +47,16 @@ def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr
     if batch_size != 1 and acc_gradients != 1:
         warnings.warn('WARNING: Batch size and Accumulative gradient step are set!')
 
-    output_folder = os.path.join(output_folder + '_' + datetime.now().strftime("%H%M%S-%d%m%Y"))
+    if resume is not None:
+        try:
+            assert os.path.exists(resume) and len(os.listdir(os.path.join(resume, 'checkpoints'))), 'Invalid directory: ' + resume
+            output_folder = resume
+            resume = True
+        except AssertionError:
+            output_folder = os.path.join(output_folder + '_' + datetime.now().strftime("%H%M%S-%d%m%Y"))
+            resume = False
+    else:
+        resume = False
     os.makedirs(output_folder, exist_ok=True)
     # dataset_copy = DatasetCopy(dataset_folder, os.path.join(output_folder, 'temp'))
     log_file = open(os.path.join(output_folder, 'log.txt'), 'w')
@@ -141,6 +151,26 @@ def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr
                                     nb_unet_features=nb_features,
                                     int_steps=0)
     network.summary(line_length=150)
+
+    resume_epoch = 0
+    if resume:
+        cp_dir = os.path.join(output_folder, 'checkpoints')
+        cp_file_list = [os.path.join(cp_dir, f) for f in os.listdir(cp_dir) if (f.startswith('checkpoint') and f.endswith('.h5'))]
+        if len(cp_file_list):
+            cp_file_list.sort()
+            checkpoint_file = cp_file_list[-1]
+            if os.path.exists(checkpoint_file):
+                network.load_weights(checkpoint_file, by_name=True)
+                print('Loaded checkpoint file: ' + checkpoint_file)
+                try:
+                    resume_epoch = int(re.match('checkpoint\.(\d+)-*.h5', os.path.split(checkpoint_file)[-1])[1])
+                except TypeError:
+                    # Checkpoint file has no epoch number in the name
+                    resume_epoch = 0
+                print('Resuming from epoch: {:d}'.format(resume_epoch))
+            else:
+                warnings.warn('Checkpoint file NOT found. Training from scratch')
+
     # Losses and loss weights
     SSIM_KER_SIZE = 5
     MS_SSIM_WEIGHTS = _MSSSIM_WEIGHTS[:3]
@@ -178,14 +208,14 @@ def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr
 
     # Train
     os.makedirs(output_folder, exist_ok=True)
-    os.makedirs(os.path.join(output_folder, 'checkpoints'), exist_ok=True)
+    os.makedirs(os.path.join(output_folder, 'checkpoints'), exist_ok=True)  # exist_ok=True leaves directory unaltered.
     os.makedirs(os.path.join(output_folder, 'tensorboard'), exist_ok=True)
     os.makedirs(os.path.join(output_folder, 'history'), exist_ok=True)
 
     callback_best_model = ModelCheckpoint(os.path.join(output_folder, 'checkpoints', 'best_model.h5'),
                             save_best_only=True, monitor='val_loss', verbose=1, mode='min')
-    # callback_save_model = ModelCheckpoint(os.path.join(output_folder, 'checkpoints', 'weights.{epoch:05d}-{val_loss:.2f}.h5'),
-    #                save_best_only=True, save_weights_only=True, monitor='val_loss', verbose=0, mode='min')
+    callback_save_model = ModelCheckpoint(os.path.join(output_folder, 'checkpoints', 'checkpoint.{epoch:05d}-{val_loss:.2f}.h5'),
+                                            save_weights_only=True, monitor='val_loss', verbose=0, mode='min')
     # CSVLogger(train_log_name, ';'),
     # UpdateLossweights([haus_weight, dice_weight], [const.MODEL+'_resampler_seg', const.MODEL+'_resampler_seg'])
     callback_tensorboard = TensorBoard(log_dir=os.path.join(output_folder, 'tensorboard'),
@@ -194,6 +224,7 @@ def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr
                                        write_graph=True, write_grads=True
                                        )
     callback_early_stop = EarlyStopping(monitor='val_loss', verbose=1, patience=C.EARLY_STOP_PATIENCE, min_delta=0.00001)
+    callback_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.1, patience=10)
 
     losses = {'transformer': loss_fnc,
               'flow': vxm.losses.Grad('l2').loss}
@@ -215,8 +246,9 @@ def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr
 
     callback_tensorboard.set_model(network)
     callback_best_model.set_model(network)
-    # callback_save_model.set_model(network)
+    callback_save_model.set_model(network)
     callback_early_stop.set_model(network)
+    callback_lr.set_model(network)
     # TODO: https://towardsdatascience.com/writing-tensorflow-2-custom-loops-438b1ab6eb6c
 
     summary = SummaryDictionary(network, C.BATCH_SIZE)
@@ -226,13 +258,13 @@ def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr
         callback_tensorboard.on_train_begin()
         callback_early_stop.on_train_begin()
         callback_best_model.on_train_begin()
-        # callback_save_model.on_train_begin()
-        for epoch in range(C.EPOCHS):
+        callback_save_model.on_train_begin()
+        for epoch in range(resume_epoch, C.EPOCHS):
             callback_tensorboard.on_epoch_begin(epoch)
             callback_early_stop.on_epoch_begin(epoch)
             callback_best_model.on_epoch_begin(epoch)
-            # callback_save_model.on_epoch_begin(epoch)
-
+            callback_save_model.on_epoch_begin(epoch)
+            callback_lr.on_epoch_begin(epoch)
             print("\nEpoch {}/{}".format(epoch, C.EPOCHS))
             print('TRAINING')
 
@@ -241,9 +273,9 @@ def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr
             for step, (in_batch, _) in enumerate(train_generator, 1):
                 # callback_tensorboard.on_train_batch_begin(step)
                 callback_best_model.on_train_batch_begin(step)
-                # callback_save_model.on_train_batch_begin(step)
+                callback_save_model.on_train_batch_begin(step)
                 callback_early_stop.on_train_batch_begin(step)
-
+                callback_lr.on_train_batch_begin(step)
                 try:
                     fix_img, mov_img, *_ = augm_model_train.predict(in_batch)
                     np.nan_to_num(fix_img, copy=False)
@@ -273,8 +305,9 @@ def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr
                 summary.on_train_batch_end(ret)
                 # callback_tensorboard.on_train_batch_end(step, named_logs(network, ret))
                 callback_best_model.on_train_batch_end(step, named_logs(network, ret))
-                # callback_save_model.on_train_batch_end(step, named_logs(network, ret))
+                callback_save_model.on_train_batch_end(step, named_logs(network, ret))
                 callback_early_stop.on_train_batch_end(step, named_logs(network, ret))
+                callback_lr.on_train_batch_end(step, named_logs(network, ret))
                 progress_bar.update(step, zip(names, ret))
                 log_file.write('\t\tStep {:03d}: {}'.format(step, ret))
             val_values = progress_bar._values.copy()
@@ -309,13 +342,15 @@ def launch_train(dataset_folder, validation_folder, output_folder, gpu_num=0, lr
             callback_tensorboard.on_epoch_end(epoch, epoch_summary)
             callback_early_stop.on_epoch_end(epoch, epoch_summary)
             callback_best_model.on_epoch_end(epoch, epoch_summary)
-            # callback_save_model.on_epoch_end(epoch, epoch_summary)
+            callback_save_model.on_epoch_end(epoch, epoch_summary)
+            callback_lr.on_epoch_end(epoch, epoch_summary)
             print('End of epoch {}: '.format(epoch), ret, '\n')
 
         callback_tensorboard.on_train_end()
-        # callback_save_model.on_train_end()
+        callback_save_model.on_train_end()
         callback_best_model.on_train_end()
         callback_early_stop.on_train_end()
+        callback_lr.on_train_end()
 
 
 if __name__ == '__main__':

@@ -41,7 +41,7 @@ class HausdorffDistanceErosion:
     def _erode(self, in_tensor):
         indiv_channels = tf.split(in_tensor, self.im_shape[-1], -1)
         res = list()
-        with tf.variable_scope('erode', reuse=tf.AUTO_REUSE):
+        with tf.compat.v1.variable_scope('erode', reuse=tf.AUTO_REUSE):
             for ch in indiv_channels:
                 res.append(self.conv(tf.expand_dims(ch, 0), self.kernel, [1] * (self.ndims + 2), 'SAME'))
         # out = -tf.nn.max_pool3d(-tf.expand_dims(in_tensor, 0), [3]*self.ndims, [1]*self.ndims, 'SAME', name='HDE_erosion')
@@ -626,7 +626,8 @@ class StructuralSimilarityGaussian:
         self.__GF = tf.while_loop(lambda iterator, g_1d: tf.less(iterator, self.dim),
                                   lambda iterator, g_1d: (iterator + 1, tf.expand_dims(g_1d, -1) * tf.transpose(g_1d_expanded)),
                                   [iterator, g_1d],
-                                  [iterator.get_shape(), tf.TensorShape([None]*self.dim)]  # Shape invariants
+                                  [iterator.get_shape(), tf.TensorShape([None]*self.dim)],  # Shape invariants
+                                  back_prop=False,
                                   )[-1]
 
         self.__GF = tf.divide(self.__GF, tf.reduce_sum(self.__GF))  # Normalization
@@ -759,48 +760,57 @@ class GeneralizedDICEScore:
         Learning Los Function for Highly Unbalanced Segmentations" https://arxiv.org/abs/1707.03237
         :param input_shape: Shape of the input image, without the batch dimension, e.g., 2D: [H, W, C], 3D: [H, W, D, C]
         """
+        self.smooth = 1e-10  # If y_pred = y_true = null -> dice should be 1
+        self.num_labels = num_labels
         if input_shape[-1] > 1:
-            self.flat_shape = [-1, np.prod(np.asarray(input_shape[:-1])), input_shape[-1]]
-            self.hot_encode = False
+            try:
+                self.flat_shape = [-1, np.prod(np.asarray(input_shape[:-1])), input_shape[-1]]
+            except TypeError as err:
+                self.flat_shape = [-1, None, input_shape[-1]]
+            self.cardinal_encoded = False
         elif num_labels is not None:
-            self.flat_shape = [-1, np.prod(np.asarray(input_shape[:-1])), num_labels]
-            self.one_hot_enc_shape = [-1, *input_shape[:-1]]
-            self.hot_encode = True
-            warnings.warn('Differentiable one-hot encoding not yet implemented')
+            try:
+                self.flat_shape = [-1, np.prod(np.asarray(input_shape[:-1])), input_shape[-1]]
+            except TypeError as err:
+                self.flat_shape = [-1, None, input_shape[-1]]
+            self.cardinal_enc_shape = [-1, *input_shape[:-1]]
+            self.cardinal_encoded = True
+            warnings.warn('Differentiable cardinal encoding not yet implemented')
         else:
-            raise ValueError('If input_shape is not one hot encoded, then num_labels must be provided')
+            raise ValueError('If input_shape does not correspond to cardinally encoded,'
+                             'then num_labels must be provided')
 
     def one_hot_encoding(self, in_img, name=''):
         # TODO: Test if differentiable!
         labels, indices = tf.unique(tf.reshape(in_img, [-1]), tf.int32, name=name+'_unique')
-        one_hot = tf.one_hot(indices, tf.size(labels), name=name + '_one_hot')
-        one_hot = tf.reshape(one_hot, self.one_hot_enc_shape + [tf.size(labels)], name=name + '_reshape')
-        one_hot = tf.slice(one_hot, [0]*len(self.one_hot_enc_shape) + [1], [-1]*(len(self.one_hot_enc_shape) + 1),
+        one_hot = tf.one_hot(indices, self.num_labels, name=name + '_one_hot')
+        one_hot = tf.reshape(one_hot, self.cardinal_enc_shape + [self.num_labels], name=name + '_reshape')
+        one_hot = tf.slice(one_hot, [0] * len(self.cardinal_enc_shape) + [1], [-1] * (len(self.cardinal_enc_shape) + 1),
                            name=name + '_remove_bg')
         return one_hot
 
     def weigthed_dice(self, y_true, y_pred):
         # y_true = [B, -1, L]
         # y_pred = [B, -1, L]
-        if self.hot_encode:
-            y_true = self.one_hot_encoding(y_true, name='GDICE_one_hot_encoding_y_true')
-            y_pred = self.one_hot_encoding(y_pred, name='GDICE_one_hot_encoding_y_pred')
+        # if self.cardinal_encoded:
+        #     y_true = self.one_hot_encoding(y_true, name='GDICE_one_hot_encoding_y_true')
+        #     y_pred = self.one_hot_encoding(y_pred, name='GDICE_one_hot_encoding_y_pred')
         y_true = tf.reshape(y_true, self.flat_shape, name='GDICE_reshape_y_true')    # Flatten along the volume dimensions
         y_pred = tf.reshape(y_pred, self.flat_shape, name='GDICE_reshape_y_pred')    # Flatten along the volume dimensions
 
         size_y_true = tf.reduce_sum(y_true, axis=1, name='GDICE_size_y_true')
         size_y_pred = tf.reduce_sum(y_pred, axis=1, name='GDICE_size_y_pred')
-        w = tf.div_no_nan(1., tf.pow(size_y_true, 2), name='GDICE_weight')
+        w = tf.math.divide_no_nan(1., tf.pow(size_y_true, 2), name='GDICE_weight')
         numerator = w * tf.reduce_sum(y_true * y_pred, axis=1)
         denominator = w * (size_y_true + size_y_pred)
-        return tf.div_no_nan(2 * tf.reduce_sum(numerator, axis=-1), tf.reduce_sum(denominator, axis=-1))
+        return tf.div_no_nan(2 * tf.reduce_sum(numerator, axis=-1) + self.smooth, tf.reduce_sum(denominator, axis=-1) + self.smooth)
 
     def macro_dice(self, y_true, y_pred):
         # y_true = [B, -1, L]
         # y_pred = [B, -1, L]
-        if self.hot_encode:
-            y_true = self.one_hot_encoding(y_true, name='GDICE_one_hot_encoding_y_true')
-            y_pred = self.one_hot_encoding(y_pred, name='GDICE_one_hot_encoding_y_pred')
+        # if self.cardinal_encoded:
+        #     y_true = self.one_hot_encoding(y_true, name='GDICE_one_hot_encoding_y_true')
+        #     y_pred = self.one_hot_encoding(y_pred, name='GDICE_one_hot_encoding_y_pred')
         y_true = tf.reshape(y_true, self.flat_shape, name='GDICE_reshape_y_true')    # Flatten along the volume dimensions
         y_pred = tf.reshape(y_pred, self.flat_shape, name='GDICE_reshape_y_pred')    # Flatten along the volume dimensions
 
@@ -808,7 +818,7 @@ class GeneralizedDICEScore:
         size_y_pred = tf.reduce_sum(y_pred, axis=1, name='GDICE_size_y_pred')
         numerator = tf.reduce_sum(y_true * y_pred, axis=1)
         denominator = (size_y_true + size_y_pred)
-        return tf.div_no_nan(2 * numerator, denominator)
+        return tf.div_no_nan(2 * numerator + self.smooth, denominator + self.smooth)
 
     @function_decorator('GeneralizeDICE__loss')
     def loss(self, y_true, y_pred):

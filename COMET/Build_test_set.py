@@ -18,10 +18,11 @@ import DeepDeformationMapRegistration.utils.constants as C
 from DeepDeformationMapRegistration.utils.nifti_utils import save_nifti
 from DeepDeformationMapRegistration.layers import AugmentationLayer
 from DeepDeformationMapRegistration.utils.visualization import save_disp_map_img, plot_predictions
-from DeepDeformationMapRegistration.utils.misc import get_segmentations_centroids
+from DeepDeformationMapRegistration.utils.misc import DisplacementMapInterpolator
 from tqdm import tqdm
 
 from Brain_study.data_generator import BatchGenerator
+from Brain_study.Build_test_set import get_mov_centroids
 
 from skimage.measure import regionprops
 from scipy.interpolate import griddata
@@ -35,12 +36,6 @@ POINTS = None
 MISSING_CENTROID = np.asarray([[np.nan]*3])
 
 
-def get_mov_centroids(fix_seg, disp_map, nb_labels=28, brain_study=True):
-    fix_centroids, _ = get_segmentations_centroids(fix_seg[0, ...], ohe=True, expected_lbls=range(0, nb_labels), brain_study=brain_study)
-    disp = griddata(POINTS, disp_map.reshape([-1, 3]), fix_centroids, method='linear')
-    return fix_centroids, fix_centroids + disp, disp
-
-
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-d', '--dir', type=str, help='Directory where to store the files', default='')
@@ -48,6 +43,7 @@ if __name__ == '__main__':
     parser.add_argument('--gpu', type=int, help='GPU', default=0)
     parser.add_argument('--dataset', type=str, help='Dataset to build the test set', default='')
     parser.add_argument('--erase', type=bool, help='Erase the content of the output folder', default=False)
+    parser.add_argument('--output_shape', help='If an int, a cubic shape is presumed. Otherwise provide it as a space separated sequence', nargs='+', default=128)
     args = parser.parse_args()
 
     assert args.dataset != '', "Missing original dataset dataset"
@@ -68,12 +64,20 @@ if __name__ == '__main__':
     os.environ['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
     os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)  # Check availability before running using 'nvidia-smi'
 
-    data_generator = BatchGenerator(DATASET, 1, False, 1.0, False, ['all'])
+    data_generator = BatchGenerator(DATASET, 1, False, 1.0, False, [0, 1, 2], return_isotropic_shape=True)
 
     img_generator = data_generator.get_train_generator()
     nb_labels = len(img_generator.get_segmentation_labels())
     image_input_shape = img_generator.get_data_shape()[-1][:-1]
-    image_output_shape = [64] * 3
+
+    if isinstance(args.output_shape, int):
+        image_output_shape = [args.output_shape] * 3
+    elif isinstance(args.output_shape, list):
+        assert len(args.output_shape) == 3, 'Invalid output shape, expected three values and got {}'.format(len(args.output_shape))
+        image_output_shape = [int(s) for s in args.output_shape]
+    else:
+        raise ValueError('Invalid output_shape. Must be an int or a space-separated sequence of ints')
+    print('Scaling to: ', image_output_shape)
     # Build model
 
     xx = np.linspace(0, image_output_shape[0], image_output_shape[0], endpoint=False)
@@ -104,15 +108,17 @@ if __name__ == '__main__':
     config.gpu_options.allow_growth = True
     config.log_device_placement = False  ## to log device placement (on which device the operation ran)
 
+    dm_interp = DisplacementMapInterpolator(image_output_shape, 'griddata', step=8)
+
     sess = tf.Session(config=config)
     tf.keras.backend.set_session(sess)
     with sess.as_default():
         sess.run(tf.global_variables_initializer())
         progress_bar = tqdm(enumerate(img_generator, 1), desc='Generating samples', total=len(img_generator))
-        for step, (in_batch, _) in progress_bar:
+        for step, (in_batch, _, isotropic_shape) in progress_bar:
             fix_img, mov_img, fix_seg, mov_seg, disp_map = augm_model.predict(in_batch)
 
-            fix_centroids, mov_centroids, disp_centroids = get_mov_centroids(fix_seg, disp_map, nb_labels, False)
+            fix_centroids, mov_centroids, disp_centroids = get_mov_centroids(fix_seg, disp_map, nb_labels, False, dm_interp=dm_interp)
 
             out_file = os.path.join(OUTPUT_FOLDER_DIR, 'test_sample_{:04d}.h5'.format(step))
             out_file_dm = os.path.join(OUTPUT_FOLDER_DIR, 'test_sample_dm_{:04d}.h5'.format(step))
@@ -127,7 +133,7 @@ if __name__ == '__main__':
                 f.create_dataset('mov_segmentations', shape=segm_shape[1:], dtype=np.uint8, data=mov_seg[0, ...])
                 f.create_dataset('fix_centroids', shape=centroids_shape, dtype=np.float32, data=fix_centroids)
                 f.create_dataset('mov_centroids', shape=centroids_shape, dtype=np.float32, data=mov_centroids)
-
+                f.create_dataset('isotropic_shape', data=np.squeeze(isotropic_shape))
             with h5py.File(out_file_dm, 'w') as f:
                 f.create_dataset('disp_map', shape=disp_shape[1:], dtype=np.float32, data=disp_map)
                 f.create_dataset('disp_centroids', shape=centroids_shape, dtype=np.float32, data=disp_centroids)
