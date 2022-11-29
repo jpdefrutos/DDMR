@@ -1,12 +1,16 @@
 <div align="center">
-    <img src="https://user-images.githubusercontent.com/29090665/197514781-11c92d1e-a692-4c78-8f0f-6cb863c6f572.png" alt="drawing" width="600">
+    <img src="https://user-images.githubusercontent.com/30429725/204596812-c59e8fa7-3383-4c52-a7f9-1f215114e5b3.png" alt="drawing" width="600">
 </div>
-
+  
 <div align="center">
+
 <h1 align="center">DDMR: Deep Deformation Map Registration</h1>
-<h3 align="center">Cross-modal transfer learning and adaptive multi-task learning for improved abdominal CT registration</h3>
+<h3 align="center">Train smarter, not harder: learning deep abdominal CT registration on scarce data</h3>
  
+# ⚠️***WARNING: Under construction*** 
+
 **DDMR** was developed by SINTEF Health Research. A paper is submitted to X and the preprint is openly available at [arXiv](some-url-here.com).
+
  
 </div>
 
@@ -47,9 +51,9 @@ python EvaluationScripts/evaluation.py
 Please, consider citing our paper, if you find the work useful:
 <pre>
   @misc{frutos2022ddmr,
-  author={Pérez de Frutos, Javier and Pedersen, André and Pelanis, Egidijus and Bouget, David and Survarachakan, Shanmugapriya and Langø, Thomas and Lindseth, Frank and Elle, Ole-Jakob},
+  author={Pérez de Frutos, Javier and Pedersen, André and Pelanis, Egidijus and Bouget, David and Survarachakan, Shanmugapriya and Langø, Thomas and Elle, Ole-Jakob and Lindseth, Frank},
   publisher = {arXiv},
-  title={Cross-modal transfer learning and adaptive multi-task learning for improved abdominal CT registration}, 
+  title={Train smarter, not harder: learning deep abdominal CT registration on scarce data}, 
   year={2022},
   doi = {10.48550/ARXIV.2011.06033},
   url = {https://arxiv.org/abs/2011.06033}}
