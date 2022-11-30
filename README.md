@@ -9,7 +9,7 @@
  
 # ⚠️***WARNING: Under construction*** 
 
-**DDMR** was developed by SINTEF Health Research. A paper is submitted to X and the preprint is openly available at [arXiv](some-url-here.com).
+**DDMR** was developed by SINTEF Health Research. The corresponding manuscript describing the framework has been submitted to [IJCARS](https://www.springer.com/journal/11548) and the preprint is openly available at [arXiv](https://arxiv.org/abs/2211.15717).
 
  
 </div>
@@ -45,17 +45,17 @@ For instance:
 python EvaluationScripts/evaluation.py
 ```
 
-## 🏆 Acknowledgements
-
 ## ✨ How to cite
 Please, consider citing our paper, if you find the work useful:
 <pre>
-  @misc{frutos2022ddmr,
-  author={Pérez de Frutos, Javier and Pedersen, André and Pelanis, Egidijus and Bouget, David and Survarachakan, Shanmugapriya and Langø, Thomas and Elle, Ole-Jakob and Lindseth, Frank},
+@misc{perezdefrutos2022ddmr,
+  doi = {10.48550/ARXIV.2211.15717},
+  url = {https://arxiv.org/abs/2211.15717},
+  author = {de Frutos, Javier Pérez and Pedersen, André and Pelanis, Egidijus and Bouget, David and Survarachakan, Shanmugapriya and Langø, Thomas and Elle, Ole-Jakob and Lindseth, Frank},
+  keywords = {Image and Video Processing (eess.IV), Computer Vision and Pattern Recognition (cs.CV), FOS: Electrical engineering, electronic engineering, information engineering, FOS: Electrical engineering, electronic engineering, information engineering, FOS: Computer and information sciences, FOS: Computer and information sciences, I.4.9; I.5.4; J.3; J.6, I.4.9},
+  title = {Train smarter, not harder: learning deep abdominal CT registration on scarce data},
   publisher = {arXiv},
-  title={Train smarter, not harder: learning deep abdominal CT registration on scarce data}, 
-  year={2022},
-  doi = {10.48550/ARXIV.2011.06033},
-  url = {https://arxiv.org/abs/2011.06033}}
+  year = {2022},
+  copyright = {Creative Commons Attribution 4.0 International}}
 </pre>
 
