@@ -49,13 +49,13 @@ python EvaluationScripts/evaluation.py
 Please, consider citing our paper, if you find the work useful:
 <pre>
 @misc{perezdefrutos2022ddmr,
-  doi = {10.48550/ARXIV.2211.15717},
-  url = {https://arxiv.org/abs/2211.15717},
-  author = {de Frutos, Javier Pérez and Pedersen, André and Pelanis, Egidijus and Bouget, David and Survarachakan, Shanmugapriya and Langø, Thomas and Elle, Ole-Jakob and Lindseth, Frank},
-  keywords = {Image and Video Processing (eess.IV), Computer Vision and Pattern Recognition (cs.CV), FOS: Electrical engineering, electronic engineering, information engineering, FOS: Electrical engineering, electronic engineering, information engineering, FOS: Computer and information sciences, FOS: Computer and information sciences, I.4.9; I.5.4; J.3; J.6, I.4.9},
-  title = {Train smarter, not harder: learning deep abdominal CT registration on scarce data},
-  publisher = {arXiv},
-  year = {2022},
-  copyright = {Creative Commons Attribution 4.0 International}}
+doi = {10.48550/ARXIV.2211.15717},
+url = {https://arxiv.org/abs/2211.15717},
+author = {de Frutos, Javier Pérez and Pedersen, André and Pelanis, Egidijus and Bouget, David and Survarachakan, Shanmugapriya and Langø, Thomas and Elle, Ole-Jakob and Lindseth, Frank},
+keywords = {Image and Video Processing (eess.IV), Computer Vision and Pattern Recognition (cs.CV), FOS: Electrical engineering, electronic engineering, information engineering, FOS: Electrical engineering, electronic engineering, information engineering, FOS: Computer and information sciences, FOS: Computer and information sciences, I.4.9; I.5.4; J.3; J.6, I.4.9},
+title = {Train smarter, not harder: learning deep abdominal CT registration on scarce data},
+publisher = {arXiv},
+year = {2022},
+copyright = {Creative Commons Attribution 4.0 International}}
 </pre>
 
