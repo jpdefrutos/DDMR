@@ -1,7 +1,7 @@
 <div align="center">
-    <img src="https://user-images.githubusercontent.com/30429725/204596812-c59e8fa7-3383-4c52-a7f9-1f215114e5b3.png" alt="drawing" width="600">
+    <img src="https://user-images.githubusercontent.com/30429725/204776025-6abcefa4-0188-4725-ab4d-6c079649eb4c.svg" alt="drawing" width="600">
 </div>
-  
+
 <div align="center">
 
 <h1 align="center">DDMR: Deep Deformation Map Registration</h1>
