@@ -49,12 +49,13 @@ python EvaluationScripts/evaluation.py
 Please, consider citing our paper, if you find the work useful:
 <pre>
 @misc{perezdefrutos2022ddmr,
-title = {Train smarter, not harder: learning deep abdominal CT registration on scarce data},
-author = {Pérez de Frutos, Javier and Pedersen, André and Pelanis, Egidijus and Bouget, David and Survarachakan, Shanmugapriya and Langø, Thomas and Elle, Ole-Jakob and Lindseth, Frank},
-year = {2022},
-doi = {10.48550/ARXIV.2211.15717},
-publisher = {arXiv},
-copyright = {Creative Commons Attribution 4.0 International},
-note={preprint on arXiv at https://arxiv.org/abs/2211.15717}}
+    title = {Train smarter, not harder: learning deep abdominal CT registration on scarce data},
+    author = {Pérez de Frutos, Javier and Pedersen, André and Pelanis, Egidijus and Bouget, David and Survarachakan, Shanmugapriya and Langø, Thomas and Elle, Ole-Jakob and Lindseth, Frank},
+    year = {2022},
+    doi = {10.48550/ARXIV.2211.15717},
+    publisher = {arXiv},
+    copyright = {Creative Commons Attribution 4.0 International},
+    note = {preprint on arXiv at https://arxiv.org/abs/2211.15717}
+}
 </pre>
 
