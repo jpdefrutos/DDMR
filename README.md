@@ -59,3 +59,17 @@ Please, consider citing our paper, if you find the work useful:
 }
 </pre>
 
+## ⭐ Acknowledgements
+This project is based on [VoxelMorph](https://github.com/voxelmorph/voxelmorph) library, and its related publication:
+<pre>
+@article{VoxelMorph2019,
+    title={VoxelMorph: A Learning Framework for Deformable Medical Image Registration}, 
+    author={Balakrishnan, Guha and Zhao, Amy and Sabuncu, Mert R. and Guttag, John and Dalca, Adrian V.},
+    journal={IEEE Transactions on Medical Imaging}, 
+    year={2019},
+    volume={38},
+    number={8},
+    pages={1788-1800},
+    doi={10.1109/TMI.2019.2897538}
+}
+</pre>
