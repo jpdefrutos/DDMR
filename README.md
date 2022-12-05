@@ -9,7 +9,7 @@
  
 # ⚠️***WARNING: Under construction*** 
 
-**DDMR** was developed by SINTEF Health Research. The corresponding manuscript describing the framework has been submitted to [IJCARS](https://www.springer.com/journal/11548) and the preprint is openly available on [arXiv](https://arxiv.org/abs/2211.15717).
+**DDMR** was developed by SINTEF Health Research. The corresponding manuscript describing the framework has been submitted to [PLOS ONE](https://journals.plos.org/plosone/) and the preprint is openly available on [arXiv](https://arxiv.org/abs/2211.15717).
 
  
 </div>
