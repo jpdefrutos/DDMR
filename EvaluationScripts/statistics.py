@@ -1,21 +1,20 @@
 import numpy as np
+import statsmodels
+import scipy
 from statsmodels.stats.multicomp import pairwise_tukeyhsd
 from statsmodels.stats.multitest import fdrcorrection
 from scipy import stats
 import pandas as pd
 
+import argparse
+import os
 
 # increase length of string in pandas
 pd.options.display.max_colwidth = 100
 
 
-def post_hoc_ixi():
-    file_path = "/Users/andreped/Downloads/ALL_METRICS.csv"
-
-    df = pd.read_csv(file_path, sep=";")
-    df = df.iloc[:, 1:]
-    df = df[df["Experiment"] == "IXI"]
-    df["Model"] = [x.replace("_", "-") for x in df["Model"]]
+def post_hoc_ixi(df_in: pd.DataFrame, outdir: str = './'):
+    df = df_in[df_in["Experiment"] == "IXI"]
 
     TRE_values = df["TRE"]
     m_comp = pairwise_tukeyhsd(df["TRE"], df["Model"], alpha=0.05)
@@ -53,20 +52,14 @@ def post_hoc_ixi():
     out_pd = out_pd.replace(-1.0, "-")
     out_pd = out_pd.replace(-0.0, '\cellcolor{green!25}$<$0.001')
 
-    with open("./tukey_pvalues_result_IXI.txt", "w") as pfile:
+    with open(os.path.join(outdir, "tukey_pvalues_result_IXI.txt"), "w") as pfile:
         pfile.write("{}".format(out_pd.to_latex(escape=False, column_format="r" + "c"*all_pvalues.shape[1], bold_rows=True)))
     
     print(out_pd)
 
 
-def study_transfer_learning_benefit():
-    file_path = "/Users/andreped/Downloads/ALL_METRICS.csv"
-
-    df = pd.read_csv(file_path, sep=";")
-    df = df.iloc[:, 1:]
-    df["Model"] = [x.replace("_", "-") for x in df["Model"]]
-
-    df_tl = df[df["Experiment"] == "COMET_TL_Ft2Stp"]
+def study_transfer_learning_benefit(df_in: pd.DataFrame):
+    df_tl = df_in[df_in["Experiment"] == "COMET_TL_Ft2Stp"]
     df_orig = df[df["Experiment"] == "COMET"]
 
     pvs = []
@@ -91,14 +84,8 @@ def study_transfer_learning_benefit():
     print("UW-NSD:", corrected_pvs[2])
         
 
-def post_hoc_comet():
-    file_path = "/Users/andreped/Downloads/ALL_METRICS.csv"
-
-    df = pd.read_csv(file_path, sep=";")
-    df = df.iloc[:, 1:]
-    df["Model"] = [x.replace("_", "-") for x in df["Model"]]
-
-    df_tl = df[df["Experiment"] == "COMET_TL_Ft2Stp"]
+def post_hoc_comet(df_in: pd.DataFrame):
+    df_tl = df_in[df_in["Experiment"] == "COMET_TL_Ft2Stp"]
 
     filter_ = np.array([x in ["BL-N", "SG-NSD", "UW-NSD"] for x in df_tl["Model"]])
 
@@ -129,11 +116,28 @@ def post_hoc_comet():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--file', '-f', type=str, help='CSV file with the metrics')
+    parser.add_argument('--sep', type=str, help='CSV Separator (default: ;)', default=';')
+    parser.add_argument('--outdir', type=str, help='Output directory (default: .)', default='./')
+    args = parser.parse_args()
+
+    assert os.path.exists(args.file), 'CSV file not found'
+
+    df = pd.read_csv(args.file, sep=args.sep)
+    if "Unnamed" in df.columns[0]:
+        df = df.iloc[:, 1:]
+    if any(['_' in m for m in df["Model"].unique()]):
+        df["Model"] = [x.replace("_", "-") for x in df["Model"]]
+
     print("\nComparing all contrasts in TRE of all models in the IXI dataset:")
-    post_hoc_ixi()
+    post_hoc_ixi(df, args.outdir)
 
     print("\nTransfer learning benefit (COMET):")
-    study_transfer_learning_benefit()
+    study_transfer_learning_benefit(df)
 
     print("\nAssessing whether there is a benefit to segmentation-guiding and uncertainty weighting (COMET):")
-    post_hoc_comet()
+    post_hoc_comet(df)
+
+    print('Statsmodels v.: ' + statsmodels.__version__)
+    print('Scipy v.: ' + scipy.__version__)
