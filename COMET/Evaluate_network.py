@@ -63,6 +63,7 @@ if __name__ == '__main__':
     parser.add_argument('--erase', type=bool, help='Erase the content of the output folder', default=False)
     parser.add_argument('--outdirname', type=str, default='Evaluate')
     parser.add_argument('--fullres', action='store_true', default=False)
+    parser.add_argument('--savenifti', type=bool, default=True)
     args = parser.parse_args()
     if args.model is not None:
         assert '.h5' in args.model[0], 'No checkpoint file provided, use -d/--dir instead'
@@ -95,10 +96,10 @@ if __name__ == '__main__':
 
     with h5py.File(list_test_files[0], 'r') as f:
         image_input_shape = image_output_shape = list(f['fix_image'][:].shape[:-1])
-        nb_labels = f['fix_segmentations'][:].shape[-1]
+        nb_labels = f['fix_segmentations'][:].shape[-1] - 1     # Skip background label
 
     # Header of the metrics csv file
-    csv_header = ['File', 'SSIM', 'MS-SSIM', 'NCC', 'MSE', 'DICE', 'DICE_MACRO', 'HD', 'Time', 'TRE', 'No_missing_lbls', 'Missing_lbls']
+    csv_header = ['File', 'SSIM', 'MS-SSIM', 'NCC', 'MSE', 'DICE', 'DICE_MACRO', 'HD', 'HD95', 'Time', 'TRE', 'No_missing_lbls', 'Missing_lbls']
 
     # TF stuff
     config = tf.compat.v1.ConfigProto()  # device_count={'GPU':0})
@@ -163,17 +164,17 @@ if __name__ == '__main__':
             print('DESTINATION FOLDER FULL RESOLUTION: ', output_folder_fr)
 
         try:
-            network = tf.keras.models.load_model(MODEL_FILE, {'VxmDenseSemiSupervisedSeg': vxm.networks.VxmDenseSemiSupervisedSeg,
+            network = tf.keras.models.load_model(MODEL_FILE, {#'VxmDenseSemiSupervisedSeg': vxm.networks.VxmDenseSemiSupervisedSeg,
                                                               'VxmDense': vxm.networks.VxmDense,
                                                               'AdamAccumulated': AdamAccumulated,
                                                               'loss': loss_fncs,
                                                               'metric': metric_fncs},
                                                  compile=False)
         except ValueError as e:
-            enc_features = [16, 32, 32, 32]     # const.ENCODER_FILTERS
-            dec_features = [32, 32, 32, 32, 32, 16, 16]     # const.ENCODER_FILTERS[::-1]
+            enc_features = [32, 64, 128, 256, 512, 1024]     # const.ENCODER_FILTERS
+            dec_features = enc_features[::-1] + [16, 16]  # const.ENCODER_FILTERS[::-1]
             nb_features = [enc_features, dec_features]
-            if re.search('^UW|SEGGUIDED_', MODEL_FILE):
+            if False: #re.search('^UW|SEGGUIDED_', MODEL_FILE):
                 network = vxm.networks.VxmDenseSemiSupervisedSeg(inshape=image_output_shape,
                                                                  nb_labels=nb_labels,
                                                                  nb_unet_features=nb_features,
@@ -181,6 +182,7 @@ if __name__ == '__main__':
                                                                  int_downsize=1,
                                                                  seg_downsize=1)
             else:
+                # only load the weights into the same model. To get the same runtime
                 network = vxm.networks.VxmDense(inshape=image_output_shape,
                                                 nb_unet_features=nb_features,
                                                 int_steps=0)
@@ -205,9 +207,9 @@ if __name__ == '__main__':
                 with h5py.File(in_batch, 'r') as f:
                     fix_img = f['fix_image'][:][np.newaxis, ...]    # Add batch axis
                     mov_img = f['mov_image'][:][np.newaxis, ...]
-                    fix_seg = f['fix_segmentations'][:][np.newaxis, ...].astype(np.float32)
-                    mov_seg = f['mov_segmentations'][:][np.newaxis, ...].astype(np.float32)
-                    fix_centroids = f['fix_centroids'][:]
+                    fix_seg = f['fix_segmentations'][..., 1:][np.newaxis, ...].astype(np.float32)
+                    mov_seg = f['mov_segmentations'][..., 1:][np.newaxis, ...].astype(np.float32)
+                    fix_centroids = f['fix_centroids'][1:, ...]
                     isotropic_shape = f['isotropic_shape'][:]
                     voxel_size = np.divide(fix_img.shape[1:-1], isotropic_shape)
 
@@ -238,6 +240,7 @@ if __name__ == '__main__':
                 # dice, hd, dice_macro = sess.run([dice_tf, hd_tf, dice_macro_tf], {'fix_seg:0': fix_seg, 'pred_seg:0': pred_seg})
                 dice = np.mean([medpy_metrics.dc(pred_seg_isot[0, ..., l], fix_seg_isot[0, ..., l]) / np.sum(fix_seg_isot[0, ..., l]) for l in range(nb_labels)])
                 hd = np.mean(safe_medpy_metric(pred_seg_isot[0, ...], fix_seg_isot[0, ...], nb_labels, medpy_metrics.hd, {'voxelspacing': voxel_size}))
+                hd95 = np.mean(safe_medpy_metric(pred_seg_isot[0, ...], fix_seg_isot[0, ...], nb_labels, medpy_metrics.hd95, {'voxelspacing': voxel_size}))
                 dice_macro = np.mean([medpy_metrics.dc(pred_seg_isot[0, ..., l], fix_seg_isot[0, ..., l]) for l in range(nb_labels)])
 
                 pred_seg_card = segmentation_ohe_to_cardinal(pred_seg).astype(np.float32)
@@ -261,7 +264,7 @@ if __name__ == '__main__':
                 tre = np.mean([v for v in tre_array if not np.isnan(v)])
                 # ['File', 'SSIM', 'MS-SSIM', 'NCC', 'MSE', 'DICE', 'HD', 'Time', 'TRE', 'No_missing_lbls', 'Missing_lbls']
 
-                new_line = [step, ssim, ms_ssim, ncc, mse, dice, dice_macro, hd, t1-t0, tre, len(missing_lbls), missing_lbls]
+                new_line = [step, ssim, ms_ssim, ncc, mse, dice, dice_macro, hd, hd95, t1-t0, tre, len(missing_lbls), missing_lbls]
                 with open(metrics_file, 'a') as f:
                     f.write(';'.join(map(str, new_line))+'\n')
 
@@ -337,12 +340,13 @@ if __name__ == '__main__':
                     with open(metrics_file_fr, 'a') as f:
                         f.write(';'.join(map(str, new_line)) + '\n')
 
-                    save_nifti(fix_img[0, ...], os.path.join(output_folder_fr, '{:03d}_fix_img_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
-                    save_nifti(mov_img[0, ...], os.path.join(output_folder_fr, '{:03d}_mov_img_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
-                    save_nifti(pred_img[0, ...], os.path.join(output_folder_fr, '{:03d}_pred_img_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
-                    save_nifti(fix_seg_card[0, ...], os.path.join(output_folder_fr, '{:03d}_fix_seg_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
-                    save_nifti(mov_seg_card[0, ...], os.path.join(output_folder_fr, '{:03d}_mov_seg_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
-                    save_nifti(pred_seg_card[0, ...], os.path.join(output_folder_fr, '{:03d}_pred_seg_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
+                    if args.savenifti:
+                        save_nifti(fix_img[0, ...], os.path.join(output_folder_fr, '{:03d}_fix_img_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
+                        save_nifti(mov_img[0, ...], os.path.join(output_folder_fr, '{:03d}_mov_img_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
+                        save_nifti(pred_img[0, ...], os.path.join(output_folder_fr, '{:03d}_pred_img_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
+                        save_nifti(fix_seg_card[0, ...], os.path.join(output_folder_fr, '{:03d}_fix_seg_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
+                        save_nifti(mov_seg_card[0, ...], os.path.join(output_folder_fr, '{:03d}_mov_seg_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
+                        save_nifti(pred_seg_card[0, ...], os.path.join(output_folder_fr, '{:03d}_pred_seg_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
 
                     # with h5py.File(os.path.join(output_folder, '{:03d}_centroids.h5'.format(step)), 'w') as f:
                     # f.create_dataset('fix_centroids', dtype=np.float32, data=fix_centroids)
