@@ -18,7 +18,7 @@ from DeepDeformationMapRegistration.utils.misc import DisplacementMapInterpolato
 from DeepDeformationMapRegistration.utils.nifti_utils import save_nifti
 from DeepDeformationMapRegistration.utils.visualization import save_disp_map_img, plot_predictions
 import DeepDeformationMapRegistration.utils.constants as C
-
+import shutil
 import medpy.metric as medpy_metrics
 
 import voxelmorph as vxm
@@ -41,16 +41,19 @@ INV_TRFS = 'invtransforms'
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--dataset', type=str, help='Directory with the images')
-    parser.add_argument('--outdir', type=str, help='Output directory')
+    parser.add_argument('--outdirname', type=str, help='Output directory')
     parser.add_argument('--gpu', type=int, help='GPU')
+    parser.add_argument('--savenifti', type=bool, default=True)
+    parser.add_argument('--erase', type=bool, help='Erase the content of the output folder', default=False)
     args = parser.parse_args()
 
     os.environ['CUDA_DEVICE_ORDER'] = 'PCI_BUS_ID'
     os.environ['CUDA_VISIBLE_DEVICES'] = str(args.gpu)
-
-    os.makedirs(args.outdir, exist_ok=True)
-    os.makedirs(os.path.join(args.outdir, 'SyN'), exist_ok=True)
-    os.makedirs(os.path.join(args.outdir, 'SyNCC'), exist_ok=True)
+    if args.erase:
+        shutil.rmtree(args.outdirname, ignore_errors=True)
+    os.makedirs(args.outdirname, exist_ok=True)
+    os.makedirs(os.path.join(args.outdirname, 'SyN'), exist_ok=True)
+    os.makedirs(os.path.join(args.outdirname, 'SyNCC'), exist_ok=True)
     dataset_files = os.listdir(args.dataset)
     dataset_files.sort()
     dataset_files = [os.path.join(args.dataset, f) for f in dataset_files if re.match(DATASET_NAMES, f)]
@@ -59,7 +62,7 @@ if __name__ == '__main__':
 
     f = h5py.File(dataset_files[0], 'r')
     image_shape = list(f['fix_image'][:].shape[:-1])
-    nb_labels = f['fix_segmentations'][:].shape[-1]
+    nb_labels = f['fix_segmentations'][:].shape[-1] - 1
     f.close()
 
     #### TF prep
@@ -96,10 +99,10 @@ if __name__ == '__main__':
     print("Running ANTs using {} threads".format(os.environ.get("ITK_GLOBAL_DEFAULT_NUMBER_OF_THREADS")))
     # dm_interp = DisplacementMapInterpolator(image_shape, 'griddata')
     # Header of the metrics csv file
-    csv_header = ['File', 'SSIM', 'MS-SSIM', 'NCC', 'MSE', 'DICE', 'DICE_MACRO', 'HD', 'Time', 'TRE']
+    csv_header = ['File', 'SSIM', 'MS-SSIM', 'NCC', 'MSE', 'DICE', 'DICE_MACRO', 'HD', 'HD95', 'Time', 'TRE']
 
-    metrics_file = {'SyN': os.path.join(args.outdir, 'SyN', 'metrics.csv'),
-                    'SyNCC': os.path.join(args.outdir, 'SyNCC', 'metrics.csv')}
+    metrics_file = {'SyN': os.path.join(args.outdirname, 'SyN', 'metrics.csv'),
+                    'SyNCC': os.path.join(args.outdirname, 'SyNCC', 'metrics.csv')}
     for k in metrics_file.keys():
         with open(metrics_file[k], 'w') as f:
             f.write(';'.join(csv_header)+'\n')
@@ -113,11 +116,14 @@ if __name__ == '__main__':
             fix_img = vol_file['fix_image'][:]
             mov_img = vol_file['mov_image'][:]
 
-            fix_seg = vol_file['fix_segmentations'][:]
-            mov_seg = vol_file['mov_segmentations'][:]
+            fix_seg = vol_file['fix_segmentations'][..., 1:].astype(np.float32)
+            mov_seg = vol_file['mov_segmentations'][..., 1:].astype(np.float32)
 
-            fix_centroids = vol_file['fix_centroids'][:]
-            mov_centroids = vol_file['mov_centroids'][:]
+            fix_centroids = vol_file['fix_centroids'][1:, ...]
+            mov_centroids = vol_file['mov_centroids'][1:, ...]
+
+            isotropic_shape = vol_file['isotropic_shape'][:]
+            voxel_size = np.divide(fix_img.shape[:-1], isotropic_shape)
 
         # ndarray to ANTsImage
         fix_img_ants = ants.make_image(fix_img.shape[:-1], np.squeeze(fix_img))  # SoA doesn't work fine with 1-ch images
@@ -155,6 +161,8 @@ if __name__ == '__main__':
                         fix_seg[np.newaxis,..., l]) for l in range(nb_labels)])
                     hd = np.mean(
                         [medpy_metrics.hd(pred_seg[np.newaxis,..., l], fix_seg[np.newaxis,..., l]) for l in range(nb_labels)])
+                    hd95 = np.mean(
+                        [medpy_metrics.hd95(pred_seg[np.newaxis,..., l], fix_seg[np.newaxis,..., l]) for l in range(nb_labels)])
                     dice_macro = np.mean(
                         [medpy_metrics.dc(pred_seg[np.newaxis,..., l], fix_seg[np.newaxis,..., l]) for l in range(nb_labels)])
 
@@ -178,32 +186,38 @@ if __name__ == '__main__':
                     disp_map = np.squeeze(np.asarray(nb.load(mov_to_fix_trf_list[0]).dataobj))
                     dm_interp = DisplacementMapInterpolator(fix_img.shape[:-1], 'griddata', step=2)
                     pred_centroids = dm_interp(disp_map, mov_centroids, backwards=True) + mov_centroids
+                    # Rescale the points back to isotropic space, where we have a correspondence voxel <-> mm
                     # upsample_scale = 128 / 64
                     # fix_centroids_isotropic = fix_centroids * upsample_scale
                     # pred_centroids_isotropic = pred_centroids * upsample_scale
+
+                    fix_centroids_isotropic = fix_centroids * voxel_size
+                    pred_centroids_isotropic = pred_centroids * voxel_size
 
                     # fix_centroids_isotropic = np.divide(fix_centroids_isotropic, C.COMET_DATASET_iso_to_cubic_scales)
                     # pred_centroids_isotropic = np.divide(pred_centroids_isotropic, C.COMET_DATASET_iso_to_cubic_scales)
                     tre_array = target_registration_error(fix_centroids, pred_centroids, False).eval()
                     tre = np.mean([v for v in tre_array if not np.isnan(v)])
+                    if np.isnan(tre):
+                        print('TRE is NaN for {} and file {}'.format(reg_method, step))
 
-                # dataset_iterator.set_description('{} ({}): Saving data {}'.format(file_num, file_path, reg_method))
-                # new_line = [step, ssim, ms_ssim, ncc, mse, dice, dice_macro, hd,
-                #             t1_syn-t0_syn if reg_method == 'SyN' else t1_syncc-t0_syncc,
-                #             tre]
-                # with open(metrics_file[reg_method], 'a') as f:
-                #     f.write(';'.join(map(str, new_line))+'\n')
+                dataset_iterator.set_description('{} ({}): Saving data {}'.format(file_num, file_path, reg_method))
+                new_line = [step, ssim, ms_ssim, ncc, mse, dice, dice_macro, hd, hd95,
+                            t1_syn-t0_syn if reg_method == 'SyN' else t1_syncc-t0_syncc,
+                            tre]
+                with open(metrics_file[reg_method], 'a') as f:
+                    f.write(';'.join(map(str, new_line))+'\n')
+                if args.savenifti:
+                    save_nifti(fix_img, os.path.join(args.outdirname, reg_method, '{:03d}_fix_img_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
+                    save_nifti(mov_img, os.path.join(args.outdirname, reg_method, '{:03d}_mov_img_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
+                    save_nifti(pred_img, os.path.join(args.outdirname, reg_method, '{:03d}_pred_img_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
+                    save_nifti(fix_seg_card, os.path.join(args.outdirname, reg_method, '{:03d}_fix_seg_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
+                    save_nifti(mov_seg_card, os.path.join(args.outdirname, reg_method, '{:03d}_mov_seg_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
+                    save_nifti(pred_seg_card, os.path.join(args.outdirname, reg_method, '{:03d}_pred_seg_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
 
-                save_nifti(fix_img[0, ...], os.path.join(args.outdir, reg_method, '{:03d}_fix_img_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
-                save_nifti(mov_img[0, ...], os.path.join(args.outdir, reg_method, '{:03d}_mov_img_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
-                save_nifti(pred_img[0, ...], os.path.join(args.outdir, reg_method, '{:03d}_pred_img_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
-                save_nifti(fix_seg_card[0, ...], os.path.join(args.outdir, reg_method, '{:03d}_fix_seg_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
-                save_nifti(mov_seg_card[0, ...], os.path.join(args.outdir, reg_method, '{:03d}_mov_seg_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
-                save_nifti(pred_seg_card[0, ...], os.path.join(args.outdir, reg_method, '{:03d}_pred_seg_ssim_{:.03f}_dice_{:.03f}.nii.gz'.format(step, ssim, dice)), verbose=False)
-
-                plot_predictions(img_batches=[fix_img[np.newaxis, ...], mov_img[np.newaxis, ...], pred_img[np.newaxis, ...]], disp_map_batch=disp_map[np.newaxis, ...], seg_batches=[fix_seg_card[np.newaxis, ...], mov_seg_card[np.newaxis, ...], pred_seg_card[np.newaxis, ...]], filename=os.path.join(args.outdir, reg_method, '{:03d}_figures_seg.png'.format(step)), show=False)
-                plot_predictions(img_batches=[fix_img[np.newaxis, ...], mov_img[np.newaxis, ...], pred_img[np.newaxis, ...]], disp_map_batch=disp_map[np.newaxis, ...], filename=os.path.join(args.outdir, reg_method, '{:03d}_figures_img.png'.format(step)), show=False)
-                save_disp_map_img(disp_map[np.newaxis, ...], 'Displacement map', os.path.join(args.outdir, reg_method, '{:03d}_disp_map_fig.png'.format(step)), show=False)
+                plot_predictions(img_batches=[fix_img[np.newaxis, ...], mov_img[np.newaxis, ...], pred_img[np.newaxis, ...]], disp_map_batch=disp_map[np.newaxis, ...], seg_batches=[fix_seg_card[np.newaxis, ...], mov_seg_card[np.newaxis, ...], pred_seg_card[np.newaxis, ...]], filename=os.path.join(args.outdirname, reg_method, '{:03d}_figures_seg.png'.format(step)), show=False)
+                plot_predictions(img_batches=[fix_img[np.newaxis, ...], mov_img[np.newaxis, ...], pred_img[np.newaxis, ...]], disp_map_batch=disp_map[np.newaxis, ...], filename=os.path.join(args.outdirname, reg_method, '{:03d}_figures_img.png'.format(step)), show=False)
+                save_disp_map_img(disp_map[np.newaxis, ...], 'Displacement map', os.path.join(args.outdirname, reg_method, '{:03d}_disp_map_fig.png'.format(step)), show=False)
 
     for k in metrics_file.keys():
         print('Summary {}\n=======\n'.format(k))
