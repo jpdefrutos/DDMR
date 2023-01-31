@@ -123,7 +123,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     assert os.path.exists(args.file), 'CSV file not found'
-
+    os.makedirs(args.outdir, exist_ok=True)
     df = pd.read_csv(args.file, sep=args.sep)
     if "Unnamed" in df.columns[0]:
         df = df.iloc[:, 1:]
