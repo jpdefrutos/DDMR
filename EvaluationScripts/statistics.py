@@ -58,6 +58,38 @@ def post_hoc_ixi(df_in: pd.DataFrame, outdir: str = './'):
     print(out_pd)
 
 
+def study_seg_guided_ANTs(df_in: pd.DataFrame):
+    tre_sg = df_in[(df_in["Experiment"] == "COMET_TL_Ft2Stp") & (df_in["Model"] == "SG-NSD")]["TRE"]
+    tre_syn = df_in[(df_in["Experiment"] == "ANTs") & (df_in["Model"] == "SyN")]["TRE"]
+    tre_syncc = df_in[(df_in["Experiment"] == "ANTs") & (df_in["Model"] == "SyNCC")]["TRE"]
+
+    pvs = list()
+    pvs.append(stats.wilcoxon(tre_sg, tre_syn, alternative="less").pvalue)
+    pvs.append(stats.wilcoxon(tre_sg, tre_syncc, alternative="less").pvalue)
+
+    # False discovery rate to get corrected p-values
+    corrected_pvs = fdrcorrection(pvs, alpha=0.05, method="indep")[1]  # Benjamini/Hochberg -> method="indep"
+
+    print("SG-NSD vs SyN:", corrected_pvs[0])
+    print("SG-NSD vs SyNCC:", corrected_pvs[1])
+
+
+def study_baseline_ANTs(df_in: pd.DataFrame):
+    tre_bl = df_in[(df_in["Experiment"] == "COMET_TL_Ft2Stp") & (df_in["Model"] == "BL-N")]["TRE"]
+    tre_syn = df_in[(df_in["Experiment"] == "ANTs") & (df_in["Model"] == "SyN")]["TRE"]
+    tre_syncc = df_in[(df_in["Experiment"] == "ANTs") & (df_in["Model"] == "SyNCC")]["TRE"]
+
+    pvs = list()
+    pvs.append(stats.wilcoxon(tre_bl, tre_syn, alternative="less").pvalue)
+    pvs.append(stats.wilcoxon(tre_bl, tre_syncc, alternative="less").pvalue)
+
+    # False discovery rate to get corrected p-values
+    corrected_pvs = fdrcorrection(pvs, alpha=0.05, method="indep")[1]  # Benjamini/Hochberg -> method="indep"
+
+    print("BL-N vs SyN:", corrected_pvs[0])
+    print("BL-N vs SyNCC:", corrected_pvs[1])
+
+
 def study_transfer_learning_benefit(df_in: pd.DataFrame):
     df_tl = df_in[df_in["Experiment"] == "COMET_TL_Ft2Stp"]
     df_orig = df[df["Experiment"] == "COMET"]
@@ -82,7 +114,6 @@ def study_transfer_learning_benefit(df_in: pd.DataFrame):
     print("BL-N:", corrected_pvs[0])
     print("SG-NSD:", corrected_pvs[1])
     print("UW-NSD:", corrected_pvs[2])
-        
 
 def post_hoc_comet(df_in: pd.DataFrame):
     df_tl = df_in[df_in["Experiment"] == "COMET_TL_Ft2Stp"]
@@ -138,6 +169,12 @@ if __name__ == "__main__":
 
     print("\nAssessing whether there is a benefit to segmentation-guiding and uncertainty weighting (COMET):")
     post_hoc_comet(df)
+
+    print("\nAssessing the performance of BL-N vs ANTs registration (COMET):")
+    study_baseline_ANTs(df)
+
+    print("\nAssessing the performance of SG-NSD vs ANTs registration (COMET):")
+    study_seg_guided_ANTs(df)
 
     print('Statsmodels v.: ' + statsmodels.__version__)
     print('Scipy v.: ' + scipy.__version__)
