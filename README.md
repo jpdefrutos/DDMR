@@ -9,7 +9,7 @@
  
 # ⚠️***WARNING: Under construction*** 
 
-**DDMR** was developed by SINTEF Health Research. The corresponding manuscript describing the framework has been submitted to [PLOS ONE](https://journals.plos.org/plosone/) and the preprint is openly available on [arXiv](https://arxiv.org/abs/2211.15717).
+**DDMR** was developed by SINTEF Health Research. The corresponding manuscript describing the framework has been accepted for publication in [PLOS ONE](https://journals.plos.org/plosone/) and the preprint is openly available on [arXiv](https://arxiv.org/abs/2211.15717).
 
  
 </div>
