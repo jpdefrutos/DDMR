@@ -5,13 +5,13 @@
 <div align="center">
 
 <h1 align="center">DDMR: Deep Deformation Map Registration</h1>
-<h3 align="center">Train smarter, not harder: learning deep abdominal CT registration on scarce data</h3>
+<h3 align="center">Learning deep abdominal CT registration through adaptive loss weighting and synthetic data generation</h3>
  
 # ⚠️***WARNING: Under construction*** 
 
-**DDMR** was developed by SINTEF Health Research. The corresponding manuscript describing the framework has been accepted for publication in [PLOS ONE](https://journals.plos.org/plosone/) and the preprint is openly available on [arXiv](https://arxiv.org/abs/2211.15717).
+**DDMR** was developed by SINTEF Health Research. The corresponding manuscript describing the framework has been published in [PLOS ONE](https://journals.plos.org/plosone/) and the manuscript is openly available [here](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0282110).
 
- 
+
 </div>
 
 ## 💻 Getting started
@@ -48,21 +48,25 @@ python EvaluationScripts/evaluation.py
 ## ✨ How to cite
 Please, consider citing our paper, if you find the work useful:
 <pre>
-@misc{perezdefrutos2022ddmr,
-    title = {Train smarter, not harder: learning deep abdominal CT registration on scarce data},
-    author = {Pérez de Frutos, Javier and Pedersen, André and Pelanis, Egidijus and Bouget, David and Survarachakan, Shanmugapriya and Langø, Thomas and Elle, Ole-Jakob and Lindseth, Frank},
-    year = {2022},
-    doi = {10.48550/ARXIV.2211.15717},
-    publisher = {arXiv},
-    copyright = {Creative Commons Attribution 4.0 International},
-    note = {preprint on arXiv at https://arxiv.org/abs/2211.15717}
+@article{perezdefrutos2022ddmr,
+    title = {Learning deep abdominal CT registration through adaptive loss weighting and synthetic data generation},
+    author = {Pérez de Frutos, Javier AND Pedersen, André AND Pelanis, Egidijus AND Bouget, David AND Survarachakan, Shanmugapriya AND Langø, Thomas AND Elle, Ole-Jakob AND Lindseth, Frank},
+    journal = {PLOS ONE},
+    publisher = {Public Library of Science},
+    year = {2023},
+    month = {02},
+    volume = {18},
+    doi = {10.1371/journal.pone.0282110},
+    url = {https://doi.org/10.1371/journal.pone.0282110},
+    pages = {1-14},
+    number = {2}
 }
 </pre>
 
 ## ⭐ Acknowledgements
 This project is based on [VoxelMorph](https://github.com/voxelmorph/voxelmorph) library, and its related publication:
 <pre>
-@article{VoxelMorph2019,
+@article{balakrishnan2019voxelmorph,
     title={VoxelMorph: A Learning Framework for Deformable Medical Image Registration}, 
     author={Balakrishnan, Guha and Zhao, Amy and Sabuncu, Mert R. and Guttag, John and Dalca, Adrian V.},
     journal={IEEE Transactions on Medical Imaging}, 
