@@ -34,24 +34,6 @@ from importlib.util import find_spec
 
 LOGGER = logging.getLogger(__name__)
 
-MODELS_FILE = {'L': {'BL-N': './models/liver/bl_ncc.h5',
-                     'BL-S': './models/liver/bl_ncc_ssim.h5',
-                     'SG-ND': './models/liver/sg_ncc_dsc.h5',
-                     'SD-NSD': './models/liver/sg_ncc_ssim_dsc.h5',
-                     'UW-NSD': './models/liver/uw_ncc_ssim_dsc.h5',
-                     'UW-NSDH': './models/liver/uw_ncc_ssim_dsc_hd.h5',
-                     },
-               'B': {'BL-N': './models/brain/bl_ncc.h5',
-                     'BL-S': './models/brain/bl_ncc_ssim.h5',
-                     'SG-ND': './models/brain/sg_ncc_dsc.h5',
-                     'SD-NSD': './models/brain/sg_ncc_ssim_dsc.h5',
-                     'UW-NSD': './models/brain/uw_ncc_ssim_dsc.h5',
-                     'UW-NSDH': './models/brain/uw_ncc_ssim_dsc_hd.h5',
-                     }
-               }
-
-IMAGE_INTPUT_SHAPE = np.asarray([128, 128, 128, 1])
-
 
 def rigidly_align_images(image_1: str, image_2: str) -> nib.Nifti1Image:
     """
@@ -280,7 +262,7 @@ def main():
 
     image_shape_crop = fixed_image.shape
     # 2.3 Resize the images to the expected input size
-    zoom_factors = IMAGE_INTPUT_SHAPE / image_shape_crop
+    zoom_factors = C.IMAGE_SHAPE / image_shape_crop
     fixed_image = zoom(fixed_image, zoom_factors)
     moving_image = zoom(moving_image, zoom_factors)
     fixed_image = min_max_norm(fixed_image)
@@ -328,7 +310,7 @@ def main():
     enc_features = [32, 64, 128, 256, 512, 1024]  # const.ENCODER_FILTERS
     dec_features = enc_features[::-1] + [16, 16]  # const.ENCODER_FILTERS[::-1]
     nb_features = [enc_features, dec_features]
-    network = vxm.networks.VxmDense(inshape=IMAGE_INTPUT_SHAPE[:-1],
+    network = vxm.networks.VxmDense(inshape=C.IMAGE_SHAPE[:-1],
                                     nb_unet_features=nb_features,
                                     int_steps=0)
     network.load_weights(MODEL_FILE, by_name=True)

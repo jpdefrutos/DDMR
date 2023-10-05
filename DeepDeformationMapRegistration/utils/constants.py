@@ -30,7 +30,7 @@ PRED_IMG_GT = 1
 DISP_VECT_GT = 2
 DISP_VECT_LOC_GT = 3
 
-IMG_SIZE = 64  # Assumed a square image
+IMG_SIZE = 128  # Assumed a square image
 IMG_SHAPE = (IMG_SIZE, IMG_SIZE, IMG_SIZE, 1)  # (IMG_SIZE, IMG_SIZE, 1)
 DISP_MAP_SHAPE = (IMG_SIZE, IMG_SIZE, IMG_SIZE, 3)
 BATCH_SHAPE = (None, IMG_SIZE, IMG_SIZE, IMG_SIZE, 2)  # Expected batch shape by the network
