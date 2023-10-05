@@ -523,3 +523,11 @@ GAMMA_AUGMENTATION = True
 BRIGHTNESS_AUGMENTATION = False
 NUM_CONTROL_PTS_AUG = 10
 NUM_AUGMENTATIONS = 1
+
+ANATOMIES = {'L': 'liver', 'B': 'brain'}
+MODEL_TYPES = {'BL-N': 'bl_ncc',
+               'BL-S': 'bl_ncc_ssim',
+               'SG-ND': 'sg_ncc_dsc',
+               'SG-NSD': 'sg_ncc_ssim_dsc',
+               'UW-NSD': 'uw_ncc_ssim_dsc',
+               'UW-NSDH': 'uw_ncc_ssim_dsc_hd'}
