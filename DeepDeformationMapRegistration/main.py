@@ -262,7 +262,7 @@ def main():
 
     image_shape_crop = fixed_image.shape
     # 2.3 Resize the images to the expected input size
-    zoom_factors = C.IMAGE_SHAPE / image_shape_crop
+    zoom_factors = np.asarray(C.IMG_SHAPE) / np.asarray(image_shape_crop)
     fixed_image = zoom(fixed_image, zoom_factors)
     moving_image = zoom(moving_image, zoom_factors)
     fixed_image = min_max_norm(fixed_image)
@@ -310,7 +310,7 @@ def main():
     enc_features = [32, 64, 128, 256, 512, 1024]  # const.ENCODER_FILTERS
     dec_features = enc_features[::-1] + [16, 16]  # const.ENCODER_FILTERS[::-1]
     nb_features = [enc_features, dec_features]
-    network = vxm.networks.VxmDense(inshape=C.IMAGE_SHAPE[:-1],
+    network = vxm.networks.VxmDense(inshape=C.IMG_SHAPE[:-1],
                                     nb_unet_features=nb_features,
                                     int_steps=0)
     network.load_weights(MODEL_FILE, by_name=True)

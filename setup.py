@@ -37,6 +37,7 @@ setup(
         'tensorboard==1.14.0',
         'nibabel==3.2.1',
         'numpy==1.18.5',
+        'h5py==2.10'
     ],
     entry_points={
         'console_scripts': ['ddmr=DeepDeformationMapRegistration.main:main']
