@@ -30,10 +30,9 @@ from DeepDeformationMapRegistration.ms_ssim_tf import MultiScaleStructuralSimila
 from DeepDeformationMapRegistration.utils.operators import min_max_norm
 from DeepDeformationMapRegistration.utils.misc import resize_displacement_map
 from DeepDeformationMapRegistration.utils.model_utils import get_models_path, load_model
+from DeepDeformationMapRegistration.utils.logger import LOGGER
 
 from importlib.util import find_spec
-
-LOGGER = logging.getLogger(__name__)
 
 
 def rigidly_align_images(image_1: str, image_2: str) -> nib.Nifti1Image:
@@ -290,7 +289,7 @@ def main():
     mse_tf = vxm.losses.MSE().loss(fix_img_ph, pred_img_ph)
     ms_ssim_tf = MultiScaleStructuralSimilarity(max_val=1., filter_size=3).metric(fix_img_ph, pred_img_ph)
 
-    LOGGER.info(f'Using model: {"Brain" if args.anatomy == "B" else "Liver"} -> {args.model}')
+    LOGGER.info(f'Getting model: {"Brain" if args.anatomy == "B" else "Liver"} -> {args.model}')
     MODEL_FILE = get_models_path(args.anatomy, args.model, os.getcwd())  # MODELS_FILE[args.anatomy][args.model]
 
     network, registration_model = load_model(MODEL_FILE, False, True)
@@ -345,11 +344,11 @@ def main():
 
         save_nifti(pred_image, os.path.join(args.outputdir, 'pred_image.nii.gz'))
         np.savez_compressed(os.path.join(args.outputdir, 'displacement_map.npz'), disp_map)
-        LOGGER.info('Predicted image (full image) and displacement map saved in: '.format(args.outputdir))
+        LOGGER.info('Predicted image and displacement map saved in: '.format(args.outputdir))
         LOGGER.info(f'Displacement map prediction time: {time_disp_map_end - time_disp_map_start} s')
         LOGGER.info(f'Predicted image time: {time_pred_img_end - time_pred_img_start} s')
 
-        LOGGER.info('Similarity metrics (Full image)\n------------------')
+        LOGGER.info('Similarity metrics\n------------------')
         LOGGER.info('SSIM: {:.03f}'.format(ssim))
         LOGGER.info('NCC: {:.03f}'.format(ncc))
         LOGGER.info('MSE: {:.03f}'.format(mse))

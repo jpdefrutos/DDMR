@@ -4,6 +4,7 @@ from datetime import datetime
 from email.utils import parsedate_to_datetime, formatdate
 from DeepDeformationMapRegistration.utils.constants import ANATOMIES, MODEL_TYPES, ENCODER_FILTERS, DECODER_FILTERS, IMG_SHAPE
 import voxelmorph as vxm
+from DeepDeformationMapRegistration.utils.logger import LOGGER
 
 
 # taken from: https://lenon.dev/blog/downloading-and-caching-large-files-using-python/
@@ -39,8 +40,12 @@ def get_models_path(anatomy: str, model_type: str, output_root_dir: str):
     url = 'https://github.com/jpdefrutos/DDMR/releases/download/trained_models_v0/' + anatomy + '_' + model_type + '.h5'
     file_path = os.path.join(output_root_dir, 'models', anatomy, model_type + '.h5')
     if not os.path.exists(file_path):
+        LOGGER.info(f'Model not found. Downloading from {url}... ')
         os.makedirs(os.path.split(file_path)[0], exist_ok=True)
         download(url, file_path)
+        LOGGER.info(f'... downloaded model. Stored in {file_path}')
+    else:
+        LOGGER.info(f'Found model: {file_path}')
     return file_path
 
 
