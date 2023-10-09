@@ -167,7 +167,7 @@ def segmentation_cardinal_to_ohe(segmentation, labels_list: list = None):
     return cpy
 
 
-def resize_displacement_map(displacement_map: np.ndarray, dest_shape: [list, np.ndarray, tuple], scale_trf: np.ndarray=None):
+def resize_displacement_map(displacement_map: np.ndarray, dest_shape: [list, np.ndarray, tuple], scale_trf: np.ndarray = None, resolution_factors: [tuple, np.ndarray] = np.ones((3,))):
     if scale_trf is None:
         scale_trf = scale_transformation(displacement_map.shape, dest_shape)
     else:
@@ -175,11 +175,12 @@ def resize_displacement_map(displacement_map: np.ndarray, dest_shape: [list, np.
     zoom_factors = scale_trf.diagonal()
     # First scale the values, so we cut down the number of multiplications
     dm_resized = np.copy(displacement_map)
-    dm_resized[..., 0] *= zoom_factors[0]
-    dm_resized[..., 1] *= zoom_factors[1]
-    dm_resized[..., 2] *= zoom_factors[2]
     # Then rescale using zoom
     dm_resized = zoom(dm_resized, zoom_factors)
+    dm_resized *= np.asarray(resolution_factors)
+    # dm_resized[..., 0] *= resolution_factors[0]
+    # dm_resized[..., 1] *= resolution_factors[1]
+    # dm_resized[..., 2] *= resolution_factors[2]
     return dm_resized
 
 
