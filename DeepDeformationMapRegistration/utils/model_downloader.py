@@ -35,7 +35,7 @@ def get_models_path(anatomy: str, model_type: str, output_root_dir: str):
     assert model_type in MODEL_TYPES.keys(), 'Invalid model type'
     anatomy = ANATOMIES[anatomy]
     model_type = MODEL_TYPES[model_type]
-    url = 'https://github.com/jpdefrutos/DDMR/releases/download/trained-models/' + anatomy + '/' + model_type + '.h5'
+    url = 'https://github.com/jpdefrutos/DDMR/releases/download/trained-models/' + anatomy + '_' + model_type + '.h5'
     file_path = os.path.join(output_root_dir, 'models', anatomy, model_type + '.h5')
     if not os.path.exists(file_path):
         os.makedirs(os.path.split(file_path)[0], exist_ok=True)
