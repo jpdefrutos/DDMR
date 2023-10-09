@@ -196,8 +196,8 @@ DROPOUT = True
 DROPOUT_RATE = 0.2
 MAX_DATA_SIZE = (1000, 1000, 1)
 PLATEAU_THR = 0.01  # A slope between +-PLATEAU_THR will be considered a plateau for the LR updating function
-ENCODER_FILTERS = [4, 8, 16, 32, 64]
-
+ENCODER_FILTERS = [32, 64, 128, 256, 512, 1024]
+DECODER_FILTERS = ENCODER_FILTERS[::-1] + [16, 16]
 # SSIM
 SSIM_FILTER_SIZE = 11  # Size of Gaussian filter
 SSIM_FILTER_SIGMA = 1.5  # Width of Gaussian filter
@@ -205,7 +205,7 @@ SSIM_K1 = 0.01  # Def. 0.01
 SSIM_K2 = 0.03  # Recommended values 0 < K2 < 0.4
 MAX_VALUE = 1.0  # Maximum intensity values
 
-# Mathematic constants
+# Mathematics constants
 EPS = 1e-8
 EPS_tf = tf.constant(EPS, dtype=tf.float32)
 LOG2 = tf.math.log(tf.constant(2, dtype=tf.float32))

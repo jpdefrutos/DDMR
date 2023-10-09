@@ -7,9 +7,9 @@ import subprocess
 import logging
 import time
 
-currentdir = os.path.dirname(os.path.realpath(__file__))
-parentdir = os.path.dirname(currentdir)
-sys.path.append(parentdir)  # PYTHON > 3.3 does not allow relative referencing
+# currentdir = os.path.dirname(os.path.realpath(__file__))
+# parentdir = os.path.dirname(currentdir)
+# sys.path.append(parentdir)  # PYTHON > 3.3 does not allow relative referencing
 
 import tensorflow as tf
 
@@ -29,6 +29,7 @@ from DeepDeformationMapRegistration.ms_ssim_tf import MultiScaleStructuralSimila
 from DeepDeformationMapRegistration.utils.operators import min_max_norm
 from DeepDeformationMapRegistration.utils.misc import resize_displacement_map
 from DeepDeformationMapRegistration.utils.model_downloader import get_models_path
+from DeepDeformationMapRegistration.networks import load_model
 
 from importlib.util import find_spec
 
@@ -284,39 +285,7 @@ def main():
     LOGGER.info(f'Using model: {"Brain" if args.anatomy == "B" else "Liver"} -> {args.model}')
     MODEL_FILE = get_models_path(args.anatomy, args.model, os.getcwd())  # MODELS_FILE[args.anatomy][args.model]
 
-    # try:
-    #     network = tf.keras.models.load_model(MODEL_FILE,
-    #                                          {'VxmDense': vxm.networks.VxmDense,
-    #                                           # 'VxmDenseSemiSupervisedSeg': vxm.networks.VxmDenseSemiSupervisedSeg,
-    #                                           'AdamAccumulated': AdamAccumulated
-    #                                           },
-    #                                          compile=False)
-    # except ValueError as e:
-    #     enc_features = [32, 64, 128, 256, 512, 1024]  # const.ENCODER_FILTERS
-    #     dec_features = enc_features[::-1] + [16, 16]  # const.ENCODER_FILTERS[::-1]
-    #     nb_features = [enc_features, dec_features]
-    #     if re.search('^UW|SEGGUIDED_', MODEL_FILE):
-    #         network = vxm.networks.VxmDense(inshape=IMAGE_INTPUT_SHAPE[:-1],
-    #                                                    nb_unet_features=nb_features,
-    #                                                    int_steps=0,
-    #                                                    int_downsize=1,
-    #                                                    seg_downsize=1)
-    #     else:
-    #         network = vxm.networks.VxmDense(inshape=IMAGE_INTPUT_SHAPE[:-1],
-    #                                                    nb_unet_features=nb_features,
-    #                                                    int_steps=0)
-    #     network.load_weights(MODEL_FILE, by_name=True)
-
-    enc_features = [32, 64, 128, 256, 512, 1024]  # const.ENCODER_FILTERS
-    dec_features = enc_features[::-1] + [16, 16]  # const.ENCODER_FILTERS[::-1]
-    nb_features = [enc_features, dec_features]
-    network = vxm.networks.VxmDense(inshape=C.IMG_SHAPE[:-1],
-                                    nb_unet_features=nb_features,
-                                    int_steps=0)
-    network.load_weights(MODEL_FILE, by_name=True)
-    network.trainable = False
-
-    registration_model = network.get_registration_model()
+    network, registration_model = load_model(MODEL_FILE, False, True)
     deb_model = network.apply_transform
 
     LOGGER.info('Computing registration')
