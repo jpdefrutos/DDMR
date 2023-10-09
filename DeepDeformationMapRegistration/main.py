@@ -6,6 +6,7 @@ import argparse
 import subprocess
 import logging
 import time
+import warnings
 
 # currentdir = os.path.dirname(os.path.realpath(__file__))
 # parentdir = os.path.dirname(currentdir)
@@ -180,15 +181,17 @@ def main():
                         default=None)
     parser.add_argument('--model', type=str, help='Which model to use: BL-N, BL-S, SG-ND, SG-NSD, UW-NSD, UW-NSDH',
                         default='UW-NSD')
-    parser.add_argument('--debug', '-d', action='store_true', help='Produce additional debug information', default=False)
+    parser.add_argument('-d', '--debug', action='store_true', help='Produce additional debug information', default=False)
     parser.add_argument('-c', '--clear-outputdir', action='store_true', help='Clear output folder if this has content', default=False)
+    parser.add_argument('--original-resolution', action='store_true',
+                        help='Re-scale the displacement map to the originla resolution and apply it to the original moving image. WARNING: longer processing time',
+                        default=False)
     args = parser.parse_args()
 
     assert os.path.exists(args.fixed), 'Fixed image not found'
     assert os.path.exists(args.moving), 'Moving image not found'
     assert args.model in C.MODEL_TYPES.keys(), 'Invalid model type'
     assert args.anatomy in C.ANATOMIES.keys(), 'Invalid anatomy option'
-
     if os.path.exists(args.outputdir) and len(os.listdir(args.outputdir)):
         if args.clear_outputdir:
             erase = 'y'
@@ -216,6 +219,12 @@ def main():
     if args.debug:
         LOGGER.setLevel('DEBUG')
         LOGGER.debug('DEBUG MODE ENABLED')
+
+    if args.original_resolution:
+        LOGGER.info('The results will be rescaled back to the original image resolution. '
+                    'Expect longer post-processing times.')
+    else:
+        LOGGER.info(f'The results will NOT be rescaled. Output shape will be {C.IMG_SHAPE[:3]}.')
 
     # Load the file and preprocess it
     LOGGER.info('Loading image files')
@@ -295,6 +304,7 @@ def main():
         time_disp_map_start = time.time()
         # disp_map = registration_model.predict([moving_image[np.newaxis, ...], fixed_image[np.newaxis, ...]])
         p, disp_map = network.predict([moving_image[np.newaxis, ...], fixed_image[np.newaxis, ...]])
+        disp_map = np.squeeze(disp_map)
         time_disp_map_end = time.time()
         LOGGER.info('\t... done')
         debug_save_image(np.squeeze(disp_map), 'disp_map_0_raw', args.outputdir, args.debug)
@@ -303,33 +313,38 @@ def main():
         # pred_image_isot = zoom(pred_image[0, ...], zoom_factors, order=3)[np.newaxis, ...]
         # fixed_image_isot = zoom(fixed_image[0, ...], zoom_factors, order=3)[np.newaxis, ...]
 
-        # Up sample the displacement map to the full res
-        LOGGER.info('Scaling displacement map...')
-        trf = np.eye(4)
-        np.fill_diagonal(trf, 1/zoom_factors)
-        disp_map = resize_displacement_map(np.squeeze(disp_map), None, trf)
-        debug_save_image(np.squeeze(disp_map), 'disp_map_1_upsampled', args.outputdir, args.debug)
-        disp_map_or = pad_displacement_map(disp_map, crop_min, crop_max, image_shape_or)
-        debug_save_image(np.squeeze(disp_map_or), 'disp_map_2_padded', args.outputdir, args.debug)
-        disp_map_or = gaussian_filter(disp_map_or, 5)
-        debug_save_image(np.squeeze(disp_map_or), 'disp_map_3_smoothed', args.outputdir, args.debug)
-        LOGGER.info('\t... done')
+        if args.original_resolution:
+            # Up sample the displacement map to the full res
+            LOGGER.info('Scaling displacement map...')
+            trf = np.eye(4)
+            np.fill_diagonal(trf, 1/zoom_factors)
+            disp_map = resize_displacement_map(disp_map, None, trf)
+            debug_save_image(disp_map, 'disp_map_1_upsampled', args.outputdir, args.debug)
+            disp_map_or = pad_displacement_map(disp_map, crop_min, crop_max, image_shape_or)
+            debug_save_image(np.squeeze(disp_map_or), 'disp_map_2_padded', args.outputdir, args.debug)
+            disp_map_or = gaussian_filter(disp_map_or, 5)
+            debug_save_image(np.squeeze(disp_map_or), 'disp_map_3_smoothed', args.outputdir, args.debug)
+            LOGGER.info('\t... done')
+
+            moving_image = moving_image_or
+            fixed_image = fixed_image_or
+            disp_map = disp_map_or
 
         LOGGER.info('Applying displacement map...')
         time_pred_img_start = time.time()
-        pred_image = SpatialTransformer(interp_method='linear', indexing='ij', single_transform=False)([moving_image_or[np.newaxis, ...], disp_map_or[np.newaxis, ...]]).eval()
+        pred_image = SpatialTransformer(interp_method='linear', indexing='ij', single_transform=False)([moving_image[np.newaxis, ...], disp_map[np.newaxis, ...]]).eval()
         time_pred_img_end = time.time()
         LOGGER.info('\t... done')
 
         LOGGER.info('Computing metrics...')
         ssim, ncc, mse, ms_ssim = sess.run([ssim_tf, ncc_tf, mse_tf, ms_ssim_tf],
-                                           {'fix_img:0': fixed_image_or[np.newaxis, ...], 'pred_img:0': pred_image})
+                                           {'fix_img:0': fixed_image[np.newaxis, ...], 'pred_img:0': pred_image})
         ssim = np.mean(ssim)
         ms_ssim = ms_ssim[0]
         pred_image = pred_image[0, ...]
 
         save_nifti(pred_image, os.path.join(args.outputdir, 'pred_image.nii.gz'))
-        np.savez_compressed(os.path.join(args.outputdir, 'displacement_map.npz'), disp_map_or)
+        np.savez_compressed(os.path.join(args.outputdir, 'displacement_map.npz'), disp_map)
         LOGGER.info('Predicted image (full image) and displacement map saved in: '.format(args.outputdir))
         LOGGER.info(f'Displacement map prediction time: {time_disp_map_end - time_disp_map_start} s')
         LOGGER.info(f'Predicted image time: {time_pred_img_end - time_pred_img_start} s')
@@ -340,15 +355,15 @@ def main():
         LOGGER.info('MSE: {:.03f}'.format(mse))
         LOGGER.info('MS SSIM: {:.03f}'.format(ms_ssim))
 
-        ssim, ncc, mse, ms_ssim = sess.run([ssim_tf, ncc_tf, mse_tf, ms_ssim_tf],
-                                           {'fix_img:0': fixed_image[np.newaxis, ...], 'pred_img:0': p})
-        ssim = np.mean(ssim)
-        ms_ssim = ms_ssim[0]
-        LOGGER.info('\nSimilarity metrics (ROI)\n------------------')
-        LOGGER.info('SSIM: {:.03f}'.format(ssim))
-        LOGGER.info('NCC: {:.03f}'.format(ncc))
-        LOGGER.info('MSE: {:.03f}'.format(mse))
-        LOGGER.info('MS SSIM: {:.03f}'.format(ms_ssim))
+        # ssim, ncc, mse, ms_ssim = sess.run([ssim_tf, ncc_tf, mse_tf, ms_ssim_tf],
+        #                                    {'fix_img:0': fixed_image[np.newaxis, ...], 'pred_img:0': p})
+        # ssim = np.mean(ssim)
+        # ms_ssim = ms_ssim[0]
+        # LOGGER.info('\nSimilarity metrics (ROI)\n------------------')
+        # LOGGER.info('SSIM: {:.03f}'.format(ssim))
+        # LOGGER.info('NCC: {:.03f}'.format(ncc))
+        # LOGGER.info('MSE: {:.03f}'.format(mse))
+        # LOGGER.info('MS SSIM: {:.03f}'.format(ms_ssim))
 
     del registration_model
     LOGGER.info('Done')
