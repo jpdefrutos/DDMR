@@ -9,23 +9,6 @@ import tensorflow as tf
 import voxelmorph as vxm
 from voxelmorph.tf.modelio import LoadableModel, store_config_args
 from tensorflow.keras.layers import UpSampling3D
-from DeepDeformationMapRegistration.utils.constants import ENCODER_FILTERS, DECODER_FILTERS, IMG_SHAPE
-
-
-def load_model(weights_file_path: str, trainable: bool = False, return_registration_model: bool=True):
-    assert os.path.exists(weights_file_path), f'File {weights_file_path} not found'
-    assert weights_file_path.endswith('h5'), 'Invalid file extension. Expected .h5'
-
-    ret_val = vxm.networks.VxmDense(inshape=IMG_SHAPE[:-1],
-                                    nb_unet_features=[ENCODER_FILTERS, DECODER_FILTERS],
-                                    int_steps=0)
-    ret_val.load_weights(weights_file_path, by_name=True)
-    ret_val.trainable = trainable
-
-    if return_registration_model:
-        ret_val = (ret_val, ret_val.get_registration_model())
-
-    return ret_val
 
 
 class WeaklySupervised(LoadableModel):

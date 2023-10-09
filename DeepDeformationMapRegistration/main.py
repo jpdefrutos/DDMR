@@ -28,8 +28,7 @@ from DeepDeformationMapRegistration.losses import StructuralSimilarity_simplifie
 from DeepDeformationMapRegistration.ms_ssim_tf import MultiScaleStructuralSimilarity
 from DeepDeformationMapRegistration.utils.operators import min_max_norm
 from DeepDeformationMapRegistration.utils.misc import resize_displacement_map
-from DeepDeformationMapRegistration.utils.model_downloader import get_models_path
-from DeepDeformationMapRegistration.networks import load_model
+from DeepDeformationMapRegistration.utils.model_utils import get_models_path, load_model
 
 from importlib.util import find_spec
 
