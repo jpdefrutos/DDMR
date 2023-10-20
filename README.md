@@ -24,7 +24,7 @@ source venv/bin/activate
 
 2. Install requirements:
 ```
-pip install /path/to/clone/.
+pip install git+https://github.com/jpdefrutos/DDMR
 ```
 
 ## 🤖 How to use
