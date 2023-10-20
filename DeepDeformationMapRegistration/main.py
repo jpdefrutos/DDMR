@@ -344,7 +344,6 @@ def main():
 
     del registration_model
     LOGGER.info('Done')
-    exit(0)
 
 
 if __name__ == '__main__':
