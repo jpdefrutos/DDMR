@@ -60,4 +60,4 @@ RUN wget "https://github.com/jpdefrutos/DDMR/releases/download/test_data_brain_v
     wget "https://github.com/jpdefrutos/DDMR/releases/download/test_data_brain_v0/ixi_image2.nii.gz"
 
 # CMD ["/bin/bash"]
-CMD ["python3", "app.py"]
+CMD ["python3", "demo/app.py"]
