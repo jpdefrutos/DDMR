@@ -1,16 +1,10 @@
 import datetime
 import os, sys
 import shutil
-import re
 import argparse
 import subprocess
 import logging
 import time
-import warnings
-
-# currentdir = os.path.dirname(os.path.realpath(__file__))
-# parentdir = os.path.dirname(currentdir)
-# sys.path.append(parentdir)  # PYTHON > 3.3 does not allow relative referencing
 
 import tensorflow as tf
 
@@ -20,13 +14,10 @@ from scipy.ndimage import gaussian_filter, zoom
 from skimage.measure import regionprops
 import SimpleITK as sitk
 
-import voxelmorph as vxm
 from voxelmorph.tf.layers import SpatialTransformer
 
 import DeepDeformationMapRegistration.utils.constants as C
 from DeepDeformationMapRegistration.utils.nifti_utils import save_nifti
-from DeepDeformationMapRegistration.losses import StructuralSimilarity_simplified, NCC
-from DeepDeformationMapRegistration.ms_ssim_tf import MultiScaleStructuralSimilarity
 from DeepDeformationMapRegistration.utils.operators import min_max_norm
 from DeepDeformationMapRegistration.utils.misc import resize_displacement_map
 from DeepDeformationMapRegistration.utils.model_utils import get_models_path, load_model
@@ -191,12 +182,12 @@ def main():
     parser.add_argument('--gpu', type=int,
                         help='In case of multi-GPU systems, limits the execution to the defined GPU number',
                         default=None)
-    parser.add_argument('--model', type=str, help='Which model to use: BL-N, BL-S, SG-ND, SG-NSD, UW-NSD, UW-NSDH',
+    parser.add_argument('--model', type=str, help='Which model to use: BL-N, BL-S, BL-NS, SG-ND, SG-NSD, UW-NSD, UW-NSDH',
                         default='UW-NSD')
     parser.add_argument('-d', '--debug', action='store_true', help='Produce additional debug information', default=False)
     parser.add_argument('-c', '--clear-outputdir', action='store_true', help='Clear output folder if this has content', default=False)
     parser.add_argument('--original-resolution', action='store_true',
-                        help='Re-scale the displacement map to the originla resolution and apply it to the original moving image. WARNING: longer processing time.',
+                        help='Re-scale the displacement map to the original resolution and apply it to the original moving image. WARNING: longer processing time.',
                         default=False)
     parser.add_argument('--save-displacement-map', action='store_true', help='Save the displacement map. An NPZ file will be created.',
                         default=False)
@@ -206,17 +197,7 @@ def main():
     assert os.path.exists(args.moving), 'Moving image not found'
     assert args.model in C.MODEL_TYPES.keys(), 'Invalid model type'
     assert args.anatomy in C.ANATOMIES.keys(), 'Invalid anatomy option'
-    if os.path.exists(args.outputdir) and len(os.listdir(args.outputdir)):
-        if args.clear_outputdir:
-            erase = 'y'
-        else:
-            erase = input('Output directory is not empty, erase content? (y/n)')
-        if erase.lower() in ['y', 'yes']:
-            shutil.rmtree(args.outputdir, ignore_errors=True)
-            print('Erased directory: ' + args.outputdir)
-        elif erase.lower() in ['n', 'no']:
-            args.outputdir = os.path.join(args.outputdir, datetime.datetime.now().strftime('%H%M%S_%Y%m%d'))
-            print('New output directory: ' + args.outputdir)
+
     os.makedirs(args.outputdir, exist_ok=True)
 
     log_format = '%(asctime)s [%(levelname)s]:\t%(message)s'
@@ -296,20 +277,11 @@ def main():
 
     # 3. Build the whole graph
     LOGGER.info('Building TF graph')
-    ### METRICS GRAPH ###
-    fix_img_ph = tf.compat.v1.placeholder(tf.float32, (1, None, None, None, 1), name='fix_img')
-    pred_img_ph = tf.compat.v1.placeholder(tf.float32, (1, None, None, None, 1), name='pred_img')
-
-    ssim_tf = StructuralSimilarity_simplified(patch_size=2, dim=3, dynamic_range=1.).metric(fix_img_ph, pred_img_ph)
-    ncc_tf = NCC(image_shape_or).metric(fix_img_ph, pred_img_ph)
-    mse_tf = vxm.losses.MSE().loss(fix_img_ph, pred_img_ph)
-    ms_ssim_tf = MultiScaleStructuralSimilarity(max_val=1., filter_size=3).metric(fix_img_ph, pred_img_ph)
 
     LOGGER.info(f'Getting model: {"Brain" if args.anatomy == "B" else "Liver"} -> {args.model}')
     MODEL_FILE = get_models_path(args.anatomy, args.model, os.getcwd())  # MODELS_FILE[args.anatomy][args.model]
 
     network, registration_model = load_model(MODEL_FILE, False, True)
-    deb_model = network.apply_transform
 
     LOGGER.info('Computing registration')
     with sess.as_default():
@@ -317,20 +289,17 @@ def main():
             registration_model.summary(line_length=C.SUMMARY_LINE_LENGTH)
         LOGGER.info('Computing displacement map...')
         time_disp_map_start = time.time()
-        # disp_map = registration_model.predict([moving_image[np.newaxis, ...], fixed_image[np.newaxis, ...]])
         p, disp_map = network.predict([moving_image[np.newaxis, ...], fixed_image[np.newaxis, ...]])
         time_disp_map_end = time.time()
         LOGGER.info(f'\t... done ({time_disp_map_end - time_disp_map_start})')
         disp_map = np.squeeze(disp_map)
         debug_save_image(np.squeeze(disp_map), 'disp_map_0_raw', args.outputdir, args.debug)
         debug_save_image(p[0, ...], 'img_4_net_pred_image', args.outputdir, args.debug)
-        # pred_image = min_max_norm(pred_image)
-        # pred_image_isot = zoom(pred_image[0, ...], zoom_factors, order=3)[np.newaxis, ...]
-        # fixed_image_isot = zoom(fixed_image[0, ...], zoom_factors, order=3)[np.newaxis, ...]
 
         LOGGER.info('Applying displacement map...')
         time_pred_img_start = time.time()
-        pred_image = SpatialTransformer(interp_method='linear', indexing='ij', single_transform=False)([moving_image[np.newaxis, ...], disp_map[np.newaxis, ...]]).eval()
+        #pred_image = SpatialTransformer(interp_method='linear', indexing='ij', single_transform=False)([moving_image[np.newaxis, ...], disp_map[np.newaxis, ...]]).eval()
+        pred_image = np.zeros_like(moving_image[np.newaxis, ...])  # @TODO: Replace this with Keras' Model with SpatialTransformer Layer
         time_pred_img_end = time.time()
         LOGGER.info(f'\t... done ({time_pred_img_end - time_pred_img_start} s)')
         pred_image = pred_image[0, ...]
@@ -340,30 +309,9 @@ def main():
             moving_image = moving_image_or
             fixed_image = fixed_image_or
             # disp_map = disp_map_or
-            pred_image = zoom(pred_image, 1/zoom_factors)
+            pred_image = zoom(pred_image, 1 / zoom_factors)
             pred_image = pad_crop_to_original_shape(pred_image, fixed_image_or.shape, crop_min)
             LOGGER.info('Done...')
-
-        LOGGER.info('Computing metrics...')
-        if args.original_resolution:
-            ssim, ncc, mse, ms_ssim = sess.run([ssim_tf, ncc_tf, mse_tf, ms_ssim_tf],
-                                               {'fix_img:0': fixed_image[np.newaxis,
-                                                                         crop_min[0]: crop_max[0],
-                                                                         crop_min[1]: crop_max[1],
-                                                                         crop_min[2]: crop_max[2],
-                                                                         ...],
-                                                'pred_img:0': pred_image[np.newaxis,
-                                                                         crop_min[0]: crop_max[0],
-                                                                         crop_min[1]: crop_max[1],
-                                                                         crop_min[2]: crop_max[2],
-                                                                         ...]})  # to only compare the deformed region!
-        else:
-
-            ssim, ncc, mse, ms_ssim = sess.run([ssim_tf, ncc_tf, mse_tf, ms_ssim_tf],
-                                               {'fix_img:0': fixed_image[np.newaxis, ...],
-                                                'pred_img:0': pred_image[np.newaxis, ...]})
-        ssim = np.mean(ssim)
-        ms_ssim = ms_ssim[0]
 
         if args.original_resolution:
             save_nifti(pred_image, os.path.join(args.outputdir, 'pred_image.nii.gz'), header=moving_image_header)
@@ -389,29 +337,13 @@ def main():
                 np.savez_compressed(os.path.join(args.outputdir, 'displacement_map.npz'), disp_map)
             else:
                 np.savez_compressed(os.path.join(os.path.join(args.outputdir, 'debug'), 'displacement_map.npz'), disp_map)
-        LOGGER.info('Predicted image and displacement map saved in: '.format(args.outputdir))
+        
+        LOGGER.info(f'Predicted image and displacement map saved in: '.format(args.outputdir))
         LOGGER.info(f'Displacement map prediction time: {time_disp_map_end - time_disp_map_start} s')
         LOGGER.info(f'Predicted image time: {time_pred_img_end - time_pred_img_start} s')
 
-        LOGGER.info('Similarity metrics\n------------------')
-        LOGGER.info('SSIM: {:.03f}'.format(ssim))
-        LOGGER.info('NCC: {:.03f}'.format(ncc))
-        LOGGER.info('MSE: {:.03f}'.format(mse))
-        LOGGER.info('MS SSIM: {:.03f}'.format(ms_ssim))
-
-        # ssim, ncc, mse, ms_ssim = sess.run([ssim_tf, ncc_tf, mse_tf, ms_ssim_tf],
-        #                                    {'fix_img:0': fixed_image[np.newaxis, ...], 'pred_img:0': p})
-        # ssim = np.mean(ssim)
-        # ms_ssim = ms_ssim[0]
-        # LOGGER.info('\nSimilarity metrics (ROI)\n------------------')
-        # LOGGER.info('SSIM: {:.03f}'.format(ssim))
-        # LOGGER.info('NCC: {:.03f}'.format(ncc))
-        # LOGGER.info('MSE: {:.03f}'.format(mse))
-        # LOGGER.info('MS SSIM: {:.03f}'.format(ms_ssim))
-
     del registration_model
     LOGGER.info('Done')
-    exit(0)
 
 
 if __name__ == '__main__':

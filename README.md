@@ -1,3 +1,15 @@
+---
+title: 'DDMR: Deep Deformation Map Registration of CT/MRIs'
+colorFrom: indigo
+colorTo: indigo
+sdk: docker
+app_port: 7860
+emoji: 🧠
+pinned: false
+license: mit
+app_file: demo/app.py
+---
+
 <div align="center">
     <img src="https://user-images.githubusercontent.com/30429725/204778476-4d24c659-9287-48b8-b616-92016ffcf4f6.svg" alt="drawing" width="600">
 </div>
@@ -26,6 +38,25 @@ source venv/bin/activate
 ```
 pip install git+https://github.com/jpdefrutos/DDMR
 ```
+
+## 🤖 How to use
+Use the following CLI command to register images
+```
+ddmr --fixed path/to/fixed_image.nii.gz --moving path/to/moving_image.nii.gz --outputdir path/to/output/dir -a <anatomy> --model <model> --gpu <gpu-number> --original-resolution
+```
+where:
+* anatomy: is the type of anatomy you want to register: B (brain) or L (liver)
+* model: is the model you want to use:
+    + BL-N (baseline with NCC)
+    + BL-NS (baseline with NCC and SSIM)
+    + SG-ND (segmentation guided with NCC and DSC)
+    + SG-NSD (segmentation guided with NCC, SSIM, and DSC)
+    + UW-NSD (uncertainty weighted with NCC, SSIM, and DSC)
+    + UW-NSDH (uncertainty weighted with NCC, SSIM, DSC, and HD).
+* gpu: is the GPU number you want to the model to run on, if you have multiple and want to use only one GPU
+* original-resolution: (flag) whether to upsample the registered image to the fixed image resolution (disabled if the flag is not present)
+
+Use ```ddmr --help``` to see additional options like using precomputed segmentations to crop the images to the desired ROI, or debugging.
 
 ## 🤖 How to use
 Use the following CLI command to register images

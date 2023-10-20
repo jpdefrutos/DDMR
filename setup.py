@@ -23,21 +23,18 @@ setup(
     ],
     python_requires='>=3.6',
     install_requires=[
-        'fastrlock>=0.3',   # required by cupy-cuda110
-        'testresources',    # required by launchpadlib
         'scipy',
         'scikit-image',
         'simpleITK',
         'voxelmorph==0.1',
         'pystrum==0.1',
-        'tensorflow-gpu==1.14.0',
+        'tensorflow==2.13',
         'tensorflow-addons',
         'tensorflow-datasets',
         'tensorflow-metadata',
-        'tensorboard==1.14.0',
         'nibabel==3.2.1',
-        'numpy==1.18.5',
-        'h5py==2.10'
+        'numpy',
+        'h5py'
     ],
     entry_points={
         'console_scripts': ['ddmr=DeepDeformationMapRegistration.main:main']

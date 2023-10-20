@@ -1,3 +1,9 @@
 .idea/
 .vs/
 *__pycache__/
+venv/
+*.nii
+*.nii.gz
+*.egg-info/
+*.h5
+*.log
