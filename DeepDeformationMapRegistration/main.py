@@ -187,7 +187,7 @@ def main():
     parser.add_argument('-d', '--debug', action='store_true', help='Produce additional debug information', default=False)
     parser.add_argument('-c', '--clear-outputdir', action='store_true', help='Clear output folder if this has content', default=False)
     parser.add_argument('--original-resolution', action='store_true',
-                        help='Re-scale the displacement map to the originla resolution and apply it to the original moving image. WARNING: longer processing time.',
+                        help='Re-scale the displacement map to the original resolution and apply it to the original moving image. WARNING: longer processing time.',
                         default=False)
     parser.add_argument('--save-displacement-map', action='store_true', help='Save the displacement map. An NPZ file will be created.',
                         default=False)
