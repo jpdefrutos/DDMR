@@ -64,7 +64,7 @@ class WebUI:
         k = int(k) - 1
         out = [gr.Image.update(visible=False)] * self.nb_slider_items
         out[k] = gr.Image.update(
-            self.fixed_images[k]
+            self.fixed_images[k],
             visible=True,
         )
         return out
@@ -73,7 +73,7 @@ class WebUI:
         k = int(k) - 1
         out = [gr.Image.update(visible=False)] * self.nb_slider_items
         out[k] = gr.Image.update(
-            self.moving_images[k]
+            self.moving_images[k],
             visible=True,
         )
         return out
@@ -82,16 +82,13 @@ class WebUI:
         k = int(k) - 1
         out = [gr.Image.update(visible=False)] * self.nb_slider_items
         out[k] = gr.Image.update(
-            self.pred_images[k]
+            self.pred_images[k],
             visible=True,
         )
         return out
 
     def run(self):
         css = """
-        #model-3d {
-        height: 512px;
-        }
         #model-2d {
         height: 512px;
         margin: auto;
