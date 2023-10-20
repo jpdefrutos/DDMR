@@ -28,8 +28,8 @@ class WebUI:
         self.share = share
 
         self.class_names = {
-            "B": "Brain",
-            "L": "Liver"
+            "Brain": "B",
+            "Liver": "L"
         }
 
         # define widgets not to be rendered immediantly, but later on
@@ -40,42 +40,49 @@ class WebUI:
             step=1,
             label="Which 2D slice to show",
         )
-        self.volume_renderer = gr.Model3D(
-            clear_color=[0.0, 0.0, 0.0, 0.0],
-            label="3D Model",
-            visible=True,
-            elem_id="model-3d",
-        ).style(height=512)
 
     def set_class_name(self, value):
         print("Changed task to:", value)
         self.class_name = value
 
-    def combine_ct_and_seg(self, img, pred):
-        return (img, [(pred, self.class_name)])
-
     def upload_file(self, file):
         return file.name
 
-    def process(self, mesh_file_name):
-        path = mesh_file_name.name
-        run_model(
-            path,
-            model_path=os.path.join(self.cwd, "resources/models/"),
-            task=self.class_names[self.class_name],
-            name=self.result_names[self.class_name],
-        )
-        nifti_to_glb("prediction.nii.gz")
+    def process(self, mesh_file_names):
+        fixed_image_path = mesh_file_names[0].name
+        moving_image_path = mesh_file_names[1].name
 
-        self.images = load_ct_to_numpy(path)
-        self.pred_images = load_pred_volume_to_numpy("./prediction.nii.gz")
-        return "./prediction.obj"
+        run_model(fixed_path, moving_path, output_path, self.class_names[self.class_name])
 
-    def get_img_pred_pair(self, k):
+        self.fixed_images = load_ct_to_numpy(fixed_image_path)
+        self.moving_images = load_ct_to_numpy(moving_image_path)
+        #self.pred_images = load_ct_to_numpy("./prediction.nii.gz")
+        self.pred_images = np.ones_like(moving_images)
+        return None
+
+    def get_fixed_image(self, k):
         k = int(k) - 1
-        out = [gr.AnnotatedImage.update(visible=False)] * self.nb_slider_items
-        out[k] = gr.AnnotatedImage.update(
-            self.combine_ct_and_seg(self.images[k], self.pred_images[k]),
+        out = [gr.Image.update(visible=False)] * self.nb_slider_items
+        out[k] = gr.Image.update(
+            self.fixed_images[k]
+            visible=True,
+        )
+        return out
+    
+    def get_moving_image(self, k):
+        k = int(k) - 1
+        out = [gr.Image.update(visible=False)] * self.nb_slider_items
+        out[k] = gr.Image.update(
+            self.moving_images[k]
+            visible=True,
+        )
+        return out
+    
+    def get_pred_image(self, k):
+        k = int(k) - 1
+        out = [gr.Image.update(visible=False)] * self.nb_slider_items
+        out[k] = gr.Image.update(
+            self.pred_images[k]
             visible=True,
         )
         return out
@@ -95,13 +102,13 @@ class WebUI:
         """
         with gr.Blocks(css=css) as demo:
             with gr.Row():
-                file_output = gr.File(file_count="single", elem_id="upload")
+                file_output = gr.File(file_count="multiple", elem_id="upload")
                 file_output.upload(self.upload_file, file_output, file_output)
 
                 model_selector = gr.Dropdown(
                     list(self.class_names.keys()),
                     label="Task",
-                    info="Which task to perform registration for",
+                    info="Which task to perform image-to-registration on",
                     multiselect=False,
                     size="sm",
                 )
@@ -117,7 +124,7 @@ class WebUI:
                 run_btn.click(
                     fn=lambda x: self.process(x),
                     inputs=file_output,
-                    outputs=self.volume_renderer,
+                    outputs=None,
                 )
 
             with gr.Row():
@@ -135,26 +142,31 @@ class WebUI:
             with gr.Row():
                 with gr.Box():
                     with gr.Column():
-                        image_boxes = []
+                        fixed_images = []
                         for i in range(self.nb_slider_items):
                             visibility = True if i == 1 else False
-                            t = gr.AnnotatedImage(
+                            t = gr.Image(
                                 visible=visibility, elem_id="model-2d"
                             ).style(
-                                color_map={self.class_name: "#ffae00"},
                                 height=512,
                                 width=512,
                             )
-                            image_boxes.append(t)
+                            fixed_images.append(t)
+                        
+                        moving_images = fixed_images.copy()
+                        pred_images = fixed_images.copy()
 
                         self.slider.input(
-                            self.get_img_pred_pair, self.slider, image_boxes
+                            self.get_fixed_image, self.slider, fixed_images
+                        )
+                        self.slider.input(
+                            self.get_moving_image, self.slider, moving_images
+                        )
+                        self.slider.input(
+                            self.get_pred_image, self.slider, pred_images
                         )
 
                         self.slider.render()
-
-                with gr.Box():
-                    self.volume_renderer.render()
 
         # sharing app publicly -> share=True:
         # https://gradio.app/sharing-your-app/
