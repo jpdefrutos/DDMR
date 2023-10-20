@@ -89,7 +89,15 @@ class WebUI:
 
     def run(self):
         css = """
-        #model-2d {
+        #model-2d-fixed {
+        height: 512px;
+        margin: auto;
+        }
+        #model-2d-moving {
+        height: 512px;
+        margin: auto;
+        }
+        #model-2d-pred {
         height: 512px;
         margin: auto;
         }
@@ -124,6 +132,7 @@ class WebUI:
                     outputs=None,
                 )
 
+            """
             with gr.Row():
                 gr.Examples(
                     examples=[
@@ -135,6 +144,7 @@ class WebUI:
                     fn=self.upload_file,
                     cache_examples=True,
                 )
+            """
 
             with gr.Row():
                 with gr.Box():
@@ -143,7 +153,7 @@ class WebUI:
                         for i in range(self.nb_slider_items):
                             visibility = True if i == 1 else False
                             t = gr.Image(
-                                visible=visibility, elem_id="model-2d"
+                                visible=visibility, elem_id="model-2d-fixed"
                             ).style(
                                 height=512,
                                 width=512,
@@ -154,7 +164,7 @@ class WebUI:
                         for i in range(self.nb_slider_items):
                             visibility = True if i == 1 else False
                             t = gr.Image(
-                                visible=visibility, elem_id="model-2d"
+                                visible=visibility, elem_id="model-2d-moving"
                             ).style(
                                 height=512,
                                 width=512,
@@ -165,7 +175,7 @@ class WebUI:
                         for i in range(self.nb_slider_items):
                             visibility = True if i == 1 else False
                             t = gr.Image(
-                                visible=visibility, elem_id="model-2d"
+                                visible=visibility, elem_id="model-2d-pred"
                             ).style(
                                 height=512,
                                 width=512,
