@@ -6,8 +6,6 @@
 
 <h1 align="center">DDMR: Deep Deformation Map Registration</h1>
 <h3 align="center">Learning deep abdominal CT registration through adaptive loss weighting and synthetic data generation</h3>
- 
-# ⚠️***WARNING: Under construction*** 
 
 **DDMR** was developed by SINTEF Health Research. The corresponding manuscript describing the framework has been published in [PLOS ONE](https://journals.plos.org/plosone/) and the manuscript is openly available [here](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0282110).
 
