@@ -1,3 +1,6 @@
-def run_model(input_path):
-    from lungtumormask import mask
-    mask.mask(input_path, "./prediction.nii.gz", lung_filter=True, threshold=0.5, radius=1, batch_size=1)
+import subprocess as sp
+
+
+def run_model(fixed_path, moving_path, output_path):
+    sp.check_call(["ddmr", "--fixed", fixed_path, "--moving", moving_path, \
+                   "-o", output_path, "-a", "B", "--model", "BL-NS", "--original-resolution"])

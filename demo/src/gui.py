@@ -2,7 +2,7 @@ import os
 
 import gradio as gr
 
-from .inference import run_model
+from .compute import run_model
 from .utils import load_ct_to_numpy
 from .utils import load_pred_volume_to_numpy
 from .utils import nifti_to_glb
@@ -16,7 +16,8 @@ class WebUI:
         share: int = 1,
     ):
         # global states
-        self.images = []
+        self.fixed_images = []
+        self.moving_images = []
         self.pred_images = []
 
         # @TODO: This should be dynamically set based on chosen volume size
@@ -26,21 +27,9 @@ class WebUI:
         self.cwd = cwd
         self.share = share
 
-        self.class_name = "meningioma"  # default
         self.class_names = {
-            "meningioma": "MRI_Meningioma",
-            "low-grade": "MRI_LGGlioma",
-            "metastasis": "MRI_Metastasis",
-            "high-grade": "MRI_GBM",
-            "brain": "MRI_Brain",
-        }
-
-        self.result_names = {
-            "meningioma": "Tumor",
-            "low-grade": "Tumor",
-            "metastasis": "Tumor",
-            "high-grade": "Tumor",
-            "brain": "Brain",
+            "B": "Brain",
+            "L": "Liver"
         }
 
         # define widgets not to be rendered immediantly, but later on
@@ -112,8 +101,7 @@ class WebUI:
                 model_selector = gr.Dropdown(
                     list(self.class_names.keys()),
                     label="Task",
-                    info="Which task to perform - one model for"
-                    "each brain tumor type and brain extraction",
+                    info="Which task to perform registration for",
                     multiselect=False,
                     size="sm",
                 )
@@ -135,8 +123,8 @@ class WebUI:
             with gr.Row():
                 gr.Examples(
                     examples=[
-                        os.path.join(self.cwd, "RegLib_C01_1.nii"),
-                        os.path.join(self.cwd, "RegLib_C01_2.nii"),
+                        os.path.join(self.cwd, "ixi_image.nii.gz"),
+                        os.path.join(self.cwd, "ixi_image2.nii.gz"),
                     ],
                     inputs=file_output,
                     outputs=file_output,

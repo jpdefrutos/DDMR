@@ -338,7 +338,7 @@ def main():
             else:
                 np.savez_compressed(os.path.join(os.path.join(args.outputdir, 'debug'), 'displacement_map.npz'), disp_map)
         
-        LOGGER.info('Predicted image and displacement map saved in: '.format(args.outputdir))
+        LOGGER.info(f'Predicted image and displacement map saved in: '.format(args.outputdir))
         LOGGER.info(f'Displacement map prediction time: {time_disp_map_end - time_disp_map_start} s')
         LOGGER.info(f'Predicted image time: {time_pred_img_end - time_pred_img_start} s')
 
