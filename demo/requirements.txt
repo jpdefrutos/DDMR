@@ -1,0 +1,2 @@
+ddmr @ git+https://github.com/jpdefrutos/DDMR.git
+gradio==3.44.4
