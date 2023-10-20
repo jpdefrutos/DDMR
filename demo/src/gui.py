@@ -45,8 +45,8 @@ class WebUI:
         print("Changed task to:", value)
         self.class_name = value
 
-    def upload_file(self, file):
-        return file.name
+    def upload_file(self, files):
+        return files
 
     def process(self, mesh_file_names):
         fixed_image_path = mesh_file_names[0].name
@@ -150,8 +150,27 @@ class WebUI:
                             )
                             fixed_images.append(t)
                         
-                        moving_images = fixed_images.copy()
-                        pred_images = fixed_images.copy()
+                        moving_images = []
+                        for i in range(self.nb_slider_items):
+                            visibility = True if i == 1 else False
+                            t = gr.Image(
+                                visible=visibility, elem_id="model-2d"
+                            ).style(
+                                height=512,
+                                width=512,
+                            )
+                            moving_images.append(t)
+                        
+                        pred_images = []
+                        for i in range(self.nb_slider_items):
+                            visibility = True if i == 1 else False
+                            t = gr.Image(
+                                visible=visibility, elem_id="model-2d"
+                            ).style(
+                                height=512,
+                                width=512,
+                            )
+                            pred_images.append(t)
 
                         self.slider.input(
                             self.get_fixed_image, self.slider, fixed_images
