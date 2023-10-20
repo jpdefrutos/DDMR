@@ -30,7 +30,7 @@ PRED_IMG_GT = 1
 DISP_VECT_GT = 2
 DISP_VECT_LOC_GT = 3
 
-IMG_SIZE = 64  # Assumed a square image
+IMG_SIZE = 128  # Assumed a square image
 IMG_SHAPE = (IMG_SIZE, IMG_SIZE, IMG_SIZE, 1)  # (IMG_SIZE, IMG_SIZE, 1)
 DISP_MAP_SHAPE = (IMG_SIZE, IMG_SIZE, IMG_SIZE, 3)
 BATCH_SHAPE = (None, IMG_SIZE, IMG_SIZE, IMG_SIZE, 2)  # Expected batch shape by the network
@@ -196,8 +196,8 @@ DROPOUT = True
 DROPOUT_RATE = 0.2
 MAX_DATA_SIZE = (1000, 1000, 1)
 PLATEAU_THR = 0.01  # A slope between +-PLATEAU_THR will be considered a plateau for the LR updating function
-ENCODER_FILTERS = [4, 8, 16, 32, 64]
-
+ENCODER_FILTERS = [32, 64, 128, 256, 512, 1024]
+DECODER_FILTERS = ENCODER_FILTERS[::-1] + [16, 16]
 # SSIM
 SSIM_FILTER_SIZE = 11  # Size of Gaussian filter
 SSIM_FILTER_SIGMA = 1.5  # Width of Gaussian filter
@@ -205,7 +205,7 @@ SSIM_K1 = 0.01  # Def. 0.01
 SSIM_K2 = 0.03  # Recommended values 0 < K2 < 0.4
 MAX_VALUE = 1.0  # Maximum intensity values
 
-# Mathematic constants
+# Mathematics constants
 EPS = 1e-8
 EPS_tf = tf.constant(EPS, dtype=tf.float32)
 LOG2 = tf.math.log(tf.constant(2, dtype=tf.float32))
@@ -523,3 +523,11 @@ GAMMA_AUGMENTATION = True
 BRIGHTNESS_AUGMENTATION = False
 NUM_CONTROL_PTS_AUG = 10
 NUM_AUGMENTATIONS = 1
+
+ANATOMIES = {'L': 'liver', 'B': 'brain'}
+MODEL_TYPES = {'BL-N': 'bl_ncc',
+               'BL-NS': 'bl_ncc_ssim',
+               'SG-ND': 'sg_ncc_dsc',
+               'SG-NSD': 'sg_ncc_ssim_dsc',
+               'UW-NSD': 'uw_ncc_ssim_dsc',
+               'UW-NSDH': 'uw_ncc_ssim_dsc_hd'}

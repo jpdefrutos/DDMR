@@ -1,9 +1,9 @@
 import os, sys
-currentdir = os.path.dirname(os.path.realpath(__file__))
-parentdir = os.path.dirname(currentdir)
-sys.path.append(parentdir)  # PYTHON > 3.3 does not allow relative referencing
-
-PYCHARM_EXEC = os.getenv('PYCHARM_EXEC') == 'True'
+# currentdir = os.path.dirname(os.path.realpath(__file__))
+# parentdir = os.path.dirname(currentdir)
+# sys.path.append(parentdir)  # PYTHON > 3.3 does not allow relative referencing
+#
+# PYCHARM_EXEC = os.getenv('PYCHARM_EXEC') == 'True'
 
 import tensorflow as tf
 import voxelmorph as vxm
