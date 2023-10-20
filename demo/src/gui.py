@@ -1,11 +1,10 @@
 import os
 
 import gradio as gr
+import numpy as np
 
 from .compute import run_model
 from .utils import load_ct_to_numpy
-from .utils import load_pred_volume_to_numpy
-from .utils import nifti_to_glb
 
 
 class WebUI:
@@ -41,24 +40,28 @@ class WebUI:
             label="Which 2D slice to show",
         )
 
+        self.run_btn = gr.Button("Run analysis").style(
+            full_width=False, size="lg"
+        )
+
     def set_class_name(self, value):
         print("Changed task to:", value)
         self.class_name = value
 
     def upload_file(self, files):
-        return files
+        return [f.name for f in files]
 
     def process(self, mesh_file_names):
         fixed_image_path = mesh_file_names[0].name
         moving_image_path = mesh_file_names[1].name
+        output_path = "./"
 
-        run_model(fixed_path, moving_path, output_path, self.class_names[self.class_name])
+        run_model(fixed_image_path, moving_image_path, output_path, self.class_names[self.class_name])
 
         self.fixed_images = load_ct_to_numpy(fixed_image_path)
         self.moving_images = load_ct_to_numpy(moving_image_path)
-        #self.pred_images = load_ct_to_numpy("./prediction.nii.gz")
-        self.pred_images = np.ones_like(moving_images)
-        return None
+        self.pred_images = np.ones_like(self.moving_images)
+        return self.pred_images
 
     def get_fixed_image(self, k):
         k = int(k) - 1
@@ -123,14 +126,7 @@ class WebUI:
                     outputs=None,
                 )
 
-                run_btn = gr.Button("Run analysis").style(
-                    full_width=False, size="lg"
-                )
-                run_btn.click(
-                    fn=lambda x: self.process(x),
-                    inputs=file_output,
-                    outputs=None,
-                )
+                self.run_btn.render()
 
             """
             with gr.Row():
@@ -149,38 +145,46 @@ class WebUI:
             with gr.Row():
                 with gr.Box():
                     with gr.Column():
-                        fixed_images = []
-                        for i in range(self.nb_slider_items):
-                            visibility = True if i == 1 else False
-                            t = gr.Image(
-                                visible=visibility, elem_id="model-2d-fixed"
-                            ).style(
-                                height=512,
-                                width=512,
+
+                        with gr.Row():
+                            fixed_images = []
+                            for i in range(self.nb_slider_items):
+                                visibility = True if i == 1 else False
+                                t = gr.Image(
+                                    visible=visibility, elem_id="model-2d-fixed"
+                                ).style(
+                                    height=512,
+                                    width=512,
+                                )
+                                fixed_images.append(t)
+                            
+                            moving_images = []
+                            for i in range(self.nb_slider_items):
+                                visibility = True if i == 1 else False
+                                t = gr.Image(
+                                    visible=visibility, elem_id="model-2d-moving"
+                                ).style(
+                                    height=512,
+                                    width=512,
+                                )
+                                moving_images.append(t)
+                            
+                            pred_images = []
+                            for i in range(self.nb_slider_items):
+                                visibility = True if i == 1 else False
+                                t = gr.Image(
+                                    visible=visibility, elem_id="model-2d-pred"
+                                ).style(
+                                    height=512,
+                                    width=512,
+                                )
+                                pred_images.append(t)
+                            
+                            self.run_btn.click(
+                                fn=lambda x: self.process(x),
+                                inputs=file_output,
+                                outputs=t,
                             )
-                            fixed_images.append(t)
-                        
-                        moving_images = []
-                        for i in range(self.nb_slider_items):
-                            visibility = True if i == 1 else False
-                            t = gr.Image(
-                                visible=visibility, elem_id="model-2d-moving"
-                            ).style(
-                                height=512,
-                                width=512,
-                            )
-                            moving_images.append(t)
-                        
-                        pred_images = []
-                        for i in range(self.nb_slider_items):
-                            visibility = True if i == 1 else False
-                            t = gr.Image(
-                                visible=visibility, elem_id="model-2d-pred"
-                            ).style(
-                                height=512,
-                                width=512,
-                            )
-                            pred_images.append(t)
 
                         self.slider.input(
                             self.get_fixed_image, self.slider, fixed_images
