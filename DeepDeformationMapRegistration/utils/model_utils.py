@@ -63,3 +63,16 @@ def load_model(weights_file_path: str, trainable: bool = False, return_registrat
         ret_val = (ret_val, ret_val.get_registration_model())
 
     return ret_val
+
+
+def get_spatialtransformer_model():
+    url = 'https://github.com/jpdefrutos/DDMR/releases/download/spatialtransformer_model_v0/spatialtransformer.h5'
+    file_path = os.path.join(os.getcwd(), 'models', 'spatialtransformer.h5')
+    if not os.path.exists(file_path):
+        LOGGER.info(f'Model not found. Downloading from {url}... ')
+        os.makedirs(os.path.split(file_path)[0], exist_ok=True)
+        download(url, file_path)
+        LOGGER.info(f'... downloaded model. Stored in {file_path}')
+    else:
+        LOGGER.info(f'Found model: {file_path}')
+    return file_path

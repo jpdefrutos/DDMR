@@ -3,6 +3,9 @@ import tensorflow.keras.backend as K
 import tensorflow as tf
 import neurite as ne
 
+import h5py
+from DeepDeformationMapRegistration.utils.constants import IMG_SHAPE, DISP_MAP_SHAPE
+
 
 class SpatialTransformer(kl.Layer):
     """
@@ -184,3 +187,15 @@ class SpatialTransformer(kl.Layer):
         # test single
         return ne.utils.interpn(vol, loc, interp_method=interp_method, fill_value=fill_value)
 
+
+if __name__ == "__main__":
+    output_file = './spatialtransformer.h5'
+
+    in_dm = tf.keras.Input(DISP_MAP_SHAPE)
+    in_image = tf.keras.Input(IMG_SHAPE)
+    pred = SpatialTransformer(interp_method='linear', indexing='ij', single_transform=False)([in_image, in_dm])
+
+    model = tf.keras.Model(inputs=[in_image, in_dm], outputs=pred)
+
+    model.save(output_file)
+    print(f"SpatialTransformer layer saved in: {output_file}")
