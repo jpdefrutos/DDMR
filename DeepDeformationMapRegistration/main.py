@@ -297,7 +297,8 @@ def main():
 
         LOGGER.info('Applying displacement map...')
         time_pred_img_start = time.time()
-        pred_image = SpatialTransformer(interp_method='linear', indexing='ij', single_transform=False)([moving_image[np.newaxis, ...], disp_map[np.newaxis, ...]]).eval()
+        pred_image = SpatialTransformer(interp_method='linear', indexing='ij', single_transform=False)([moving_image[np.newaxis, ...], disp_map[np.newaxis, ...]])#.eval()
+        pred_image = np.asarray(pred_image)
         time_pred_img_end = time.time()
         LOGGER.info(f'\t... done ({time_pred_img_end - time_pred_img_start} s)')
         pred_image = pred_image[0, ...]

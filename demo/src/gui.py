@@ -60,7 +60,7 @@ class WebUI:
 
         self.fixed_images = load_ct_to_numpy(fixed_image_path)
         self.moving_images = load_ct_to_numpy(moving_image_path)
-        self.pred_images = np.ones_like(self.moving_images)
+        self.pred_images = load_ct_to_numpy(output_path + "pred_image.nii.gz")
         return self.pred_images
 
     def get_fixed_image(self, k):
