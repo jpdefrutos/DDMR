@@ -300,7 +300,6 @@ def main():
 
         LOGGER.info('Applying displacement map...')
         time_pred_img_start = time.time()
-        # pred_image = SpatialTransformer(interp_method='linear', indexing='ij', single_transform=False)([moving_image[np.newaxis, ...], disp_map[np.newaxis, ...]]).eval()
         pred_image = spatialtransformer_model.predict([moving_image[np.newaxis, ...], disp_map[np.newaxis, ...]])
         time_pred_img_end = time.time()
         LOGGER.info(f'\t... done ({time_pred_img_end - time_pred_img_start} s)')
@@ -313,6 +312,7 @@ def main():
             # disp_map = disp_map_or
             pred_image = zoom(pred_image, 1 / zoom_factors)
             pred_image = pad_crop_to_original_shape(pred_image, fixed_image_or.shape, crop_min)
+            pred_image = np.squeeze(pred_image, axis=-1)
             LOGGER.info('Done...')
 
         if args.original_resolution:
