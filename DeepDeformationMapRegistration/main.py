@@ -14,8 +14,7 @@ from scipy.ndimage import gaussian_filter, zoom
 from skimage.measure import regionprops
 import SimpleITK as sitk
 
-from voxelmorph.tf.layers import SpatialTransformer
-
+from DeepDeformationMapRegistration.layers.SpatialTransformer import SpatialTransformer
 import DeepDeformationMapRegistration.utils.constants as C
 from DeepDeformationMapRegistration.utils.nifti_utils import save_nifti
 from DeepDeformationMapRegistration.utils.operators import min_max_norm
@@ -298,8 +297,7 @@ def main():
 
         LOGGER.info('Applying displacement map...')
         time_pred_img_start = time.time()
-        #pred_image = SpatialTransformer(interp_method='linear', indexing='ij', single_transform=False)([moving_image[np.newaxis, ...], disp_map[np.newaxis, ...]]).eval()
-        pred_image = np.zeros_like(moving_image[np.newaxis, ...])  # @TODO: Replace this with Keras' Model with SpatialTransformer Layer
+        pred_image = SpatialTransformer(interp_method='linear', indexing='ij', single_transform=False)([moving_image[np.newaxis, ...], disp_map[np.newaxis, ...]]).eval()
         time_pred_img_end = time.time()
         LOGGER.info(f'\t... done ({time_pred_img_end - time_pred_img_start} s)')
         pred_image = pred_image[0, ...]
