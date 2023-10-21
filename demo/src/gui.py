@@ -20,7 +20,7 @@ class WebUI:
         self.pred_images = []
 
         # @TODO: This should be dynamically set based on chosen volume size
-        self.nb_slider_items = 150
+        self.nb_slider_items = 128
 
         self.model_name = model_name
         self.cwd = cwd
@@ -151,7 +151,7 @@ class WebUI:
                             for i in range(self.nb_slider_items):
                                 visibility = True if i == 1 else False
                                 t = gr.Image(
-                                    visible=visibility, elem_id="model-2d-fixed"
+                                    visible=visibility, elem_id="model-2d-fixed", label="fixed image", show_label=True,
                                 ).style(
                                     height=512,
                                     width=512,
@@ -162,7 +162,7 @@ class WebUI:
                             for i in range(self.nb_slider_items):
                                 visibility = True if i == 1 else False
                                 t = gr.Image(
-                                    visible=visibility, elem_id="model-2d-moving"
+                                    visible=visibility, elem_id="model-2d-moving", label="moving image", show_label=True,
                                 ).style(
                                     height=512,
                                     width=512,
@@ -173,7 +173,7 @@ class WebUI:
                             for i in range(self.nb_slider_items):
                                 visibility = True if i == 1 else False
                                 t = gr.Image(
-                                    visible=visibility, elem_id="model-2d-pred"
+                                    visible=visibility, elem_id="model-2d-pred", label="predicted fixed image", show_label=True,
                                 ).style(
                                     height=512,
                                     width=512,
