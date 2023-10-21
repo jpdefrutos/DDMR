@@ -69,10 +69,39 @@ To access the live demo, click on the `Hugging Face` badge above. Below is a sna
 
 <img width="1794" alt="Screenshot 2023-10-21 at 21 49 17" src="https://github.com/jpdefrutos/DDMR/assets/29090665/8d16160b-416d-40ed-a7d6-619c7360c696">
 
+<details>
+<summary>
+
+### Development</summary>
+
+To develop the Gradio app locally, you can use either Python or Docker.
+
+#### Python
+
+You can run the app locally by:
+
+```
+python demo/app.py --cwd ./ --share 0
+```
+
+Then open `http://127.0.0.1:7860` in your favourite internet browser to view the demo.
+
+#### Docker
+
+Alternatively, you can use docker:
+
+```
+docker build -t ddmr .
+docker run -it -p 7860:7860 ddmr
+```
+
+Then open `http://127.0.0.1:7860` in your favourite internet browser to view the demo.
+
+</details>
 
 ## 🏋️‍♂️ Training
 
-Use the "MultiTrain" scripts to launch the trainings, providing the neccesary parameters. Those in the COMET folder accepts a .ini configuration file (see COMET/train_config_files for example configurations).
+Use the "MultiTrain" scripts to launch the trainings, providing the neccesary parameters. Those in the COMET folder accepts a `.ini` configuration file (see `COMET/train_config_files/` for example configurations).
 
 For instance:
 ```
@@ -81,7 +110,7 @@ python TrainingScripts/Train_3d.py
 
 ## 🔍 Evaluate
 
-Use Evaluate_network to test the trained models. On the Brain folder, use "Evaluate_network__test_fixed.py" instead.
+Use Evaluate_network to test the trained models. On the Brain folder, use `Evaluate_network__test_fixed.py` instead.
 
 For instance:
 ```
