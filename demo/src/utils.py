@@ -21,7 +21,6 @@ def load_ct_to_numpy(data_path):
     data = data / np.amax(data) * 255
     data = data.astype("uint8")
 
-    print(data.shape)
     return [data[..., i] for i in range(data.shape[-1])]
 
 
@@ -38,7 +37,6 @@ def load_pred_volume_to_numpy(data_path):
     data[data > 0] = 1
     data = data.astype("uint8")
 
-    print(data.shape)
     return [data[..., i] for i in range(data.shape[-1])]
 
 
