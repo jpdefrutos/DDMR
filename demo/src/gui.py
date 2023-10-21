@@ -54,7 +54,7 @@ class WebUI:
     def process(self, mesh_file_names):
         fixed_image_path = mesh_file_names[0].name
         moving_image_path = mesh_file_names[1].name
-        output_path = "./"
+        output_path = self.cwd
 
         run_model(fixed_image_path, moving_image_path, output_path, self.class_names[self.class_name])
 
