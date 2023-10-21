@@ -9,6 +9,7 @@ def load_ct_to_numpy(data_path):
         data_path = data_path.name
 
     image = nib.load(data_path)
+    print("original nibabel image shape:", image.shape)
     resampled = resample_to_output(image, None, order=0)
     data = resampled.get_fdata()
 

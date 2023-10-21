@@ -19,6 +19,12 @@ app_file: demo/app.py
 <h1 align="center">DDMR: Deep Deformation Map Registration</h1>
 <h3 align="center">Learning deep abdominal CT registration through adaptive loss weighting and synthetic data generation</h3>
 
+[![license](https://img.shields.io/github/license/DAVFoundation/captain-n3m0.svg?style=flat-square)](https://github.com/DAVFoundation/captain-n3m0/blob/master/LICENSE)
+[![CI/CD](https://github.com/jpdefrutos/DDMR/actions/workflows/deploy.yml/badge.svg)](https://github.com/jpdefrutos/DDMR/actions/workflows/deploy.yml)
+[![Paper](https://zenodo.org/badge/DOI/10.1371/journal.pone.0282110.svg)](https://doi.org/10.1371/journal.pone.0282110)
+<a target="_blank" href="https://huggingface.co/spaces/andreped/DDMR"><img src="https://img.shields.io/badge/🤗%20Hugging%20Face-Spaces-yellow.svg"></a>
+
+
 **DDMR** was developed by SINTEF Health Research. The corresponding manuscript describing the framework has been published in [PLOS ONE](https://journals.plos.org/plosone/) and the manuscript is openly available [here](https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0282110).
 
 </div>
@@ -73,6 +79,13 @@ where:
 * original-resolution: (flag) whether to upsample the registered image to the fixed image resolution (disabled if the flag is not present)
 
 Use ```ddmr --help``` to see additional options like using precomputed segmentations to crop the images to the desired ROI, or debugging.
+
+## 🤗 Demo  <a target="_blank" href="https://huggingface.co/spaces/andreped/DDMR"><img src="https://img.shields.io/badge/🤗%20Hugging%20Face-Spaces-yellow.svg"></a>
+
+A live demo to easily test the best performing pretrained models was developed in Gradio and is deployed on `Hugging Face`.
+
+To access the live demo, click on the `Hugging Face` badge above. Below is a snapshot of the current state of the demo app.
+
 
 ## 🏋️‍♂️ Training
 
