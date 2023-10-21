@@ -19,7 +19,7 @@ import DeepDeformationMapRegistration.utils.constants as C
 from DeepDeformationMapRegistration.utils.nifti_utils import save_nifti
 from DeepDeformationMapRegistration.utils.operators import min_max_norm
 from DeepDeformationMapRegistration.utils.misc import resize_displacement_map
-from DeepDeformationMapRegistration.utils.model_utils import get_models_path, load_model
+from DeepDeformationMapRegistration.utils.model_utils import get_models_path, load_model, get_spatialtransformer_model
 from DeepDeformationMapRegistration.utils.logger import LOGGER
 
 from importlib.util import find_spec
@@ -279,8 +279,11 @@ def main():
 
     LOGGER.info(f'Getting model: {"Brain" if args.anatomy == "B" else "Liver"} -> {args.model}')
     MODEL_FILE = get_models_path(args.anatomy, args.model, os.getcwd())  # MODELS_FILE[args.anatomy][args.model]
+    ST_MODEL_FILE = get_spatialtransformer_model()
 
     network, registration_model = load_model(MODEL_FILE, False, True)
+    spatialtransformer_model = tf.keras.models.load_model(ST_MODEL_FILE,
+                                                          custom_objects={'SpatialTransformer': SpatialTransformer})
 
     LOGGER.info('Computing registration')
     with sess.as_default():
@@ -297,8 +300,7 @@ def main():
 
         LOGGER.info('Applying displacement map...')
         time_pred_img_start = time.time()
-        pred_image = SpatialTransformer(interp_method='linear', indexing='ij', single_transform=False)([moving_image[np.newaxis, ...], disp_map[np.newaxis, ...]])#.eval()
-        pred_image = np.asarray(pred_image)
+        pred_image = spatialtransformer_model.predict([moving_image[np.newaxis, ...], disp_map[np.newaxis, ...]])
         time_pred_img_end = time.time()
         LOGGER.info(f'\t... done ({time_pred_img_end - time_pred_img_start} s)')
         pred_image = pred_image[0, ...]
