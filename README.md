@@ -74,6 +74,13 @@ where:
 
 Use ```ddmr --help``` to see additional options like using precomputed segmentations to crop the images to the desired ROI, or debugging.
 
+## 🤗 Demo  <a target="_blank" href="https://huggingface.co/spaces/andreped/DDMR"><img src="https://img.shields.io/badge/🤗%20Hugging%20Face-Spaces-yellow.svg"></a>
+
+A live demo to easily test the best performing pretrained models was developed in Gradio and is deployed on `Hugging Face`.
+
+To access the live demo, click on the `Hugging Face` badge above. Below is a snapshot of the current state of the demo app.
+
+
 ## 🏋️‍♂️ Training
 
 Use the "MultiTrain" scripts to launch the trainings, providing the neccesary parameters. Those in the COMET folder accepts a .ini configuration file (see COMET/train_config_files for example configurations).
