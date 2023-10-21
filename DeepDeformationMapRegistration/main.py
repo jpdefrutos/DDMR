@@ -310,6 +310,7 @@ def main():
             # disp_map = disp_map_or
             pred_image = zoom(pred_image, 1 / zoom_factors)
             pred_image = pad_crop_to_original_shape(pred_image, fixed_image_or.shape, crop_min)
+            pred_image = np.squeeze(pred_image, axis=-1)
             LOGGER.info('Done...')
 
         if args.original_resolution:

@@ -61,7 +61,7 @@ class WebUI:
         self.fixed_images = load_ct_to_numpy(fixed_image_path)
         self.moving_images = load_ct_to_numpy(moving_image_path)
         self.pred_images = load_ct_to_numpy(output_path + "pred_image.nii.gz")
-        return self.pred_images
+        return None
 
     def get_fixed_image(self, k):
         k = int(k) - 1
@@ -183,7 +183,7 @@ class WebUI:
                             self.run_btn.click(
                                 fn=lambda x: self.process(x),
                                 inputs=file_output,
-                                outputs=t,
+                                outputs=None,
                             )
 
                         self.slider.input(
