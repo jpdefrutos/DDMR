@@ -171,9 +171,9 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('-f', '--fixed', type=str, help='Path to fixed image file (NIfTI)')
     parser.add_argument('-m', '--moving', type=str, help='Path to moving segmentation image file (NIfTI)', default=None)
-    parser.add_argument('-F', '--fixedsegm', type=str, help='Path to fixed image segmentation file(NIfTI)',
+    parser.add_argument('-fs', '--fixedsegm', type=str, help='Path to fixed image segmentation file(NIfTI)',
                         default=None)
-    parser.add_argument('-M', '--movingsegm', type=str, help='Path to moving image file (NIfTI)')
+    parser.add_argument('-ms', '--movingsegm', type=str, help='Path to moving image file (NIfTI)')
     parser.add_argument('-o', '--outputdir', type=str, help='Output directory', default='./Registration_output')
     parser.add_argument('-a', '--anatomy', type=str, help='Anatomical structure: liver (L) (Default) or brain (B)',
                         default='L')
