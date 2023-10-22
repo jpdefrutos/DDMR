@@ -191,7 +191,7 @@ def main():
     parser.add_argument('--save-displacement-map', action='store_true', help='Save the displacement map. An NPZ file will be created.',
                         default=False)
     args = parser.parse_args()
-
+    
     assert os.path.exists(args.fixed), 'Fixed image not found'
     assert os.path.exists(args.moving), 'Moving image not found'
     assert args.model in C.MODEL_TYPES.keys(), 'Invalid model type'

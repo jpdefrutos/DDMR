@@ -28,6 +28,11 @@ class WebUI:
             "Liver": "L"
         }
 
+        self.fixed_image_path = None
+        self.moving_image_path = None
+        self.fixed_seg_path = None
+        self.moving_seg_path = None
+
         # define widgets not to be rendered immediantly, but later on
         self.slider = gr.Slider(
             1,
@@ -48,27 +53,38 @@ class WebUI:
     def upload_file(self, files):
         return [f.name for f in files]
 
-    def process(self, mesh_file_names):
-        if not (len(mesh_file_names) in [2, 4]):
-            raise ValueError("Unsupported number of elements were provided as input to the DDMR CLI."
-                             "Either provided 2 or 4 elements, where the two first being the fixed"
-                             "and moving CT/MRIs and the two other being the binary segmentation"
-                             "which will be used for ROI filtering in preprocessing.")
-        fixed_image_path = mesh_file_names[0].name
-        moving_image_path = mesh_file_names[1].name
+    def update_fixed(self, cfile):
+        self.fixed_image_path = cfile.name
+        return self.fixed_image_path
+    
+    def update_moving(self, cfile):
+        self.moving_image_path = cfile.name
+        return self.moving_image_path
+    
+    def update_fixed_seg(self, cfile):
+        self.fixed_seg_path = cfile.name
+        return self.fixed_seg_path
+    
+    def update_moving_seg(self, cfile):
+        self.moving_seg_path = cfile.name
+        return self.moving_seg_path
+
+    def process(self):
+        if (self.fixed_image_path is None) or (self.moving_image_path is None):
+            raise ValueError("Please, select both a fixed and moving image before running inference.")
+
         output_path = self.cwd
+        
+        run_model(self.fixed_image_path, self.moving_image_path, self.fixed_seg_path, self.moving_seg_path, output_path, self.class_names[self.class_name])
 
-        if len(mesh_file_names) == 2:
-            run_model(fixed_image_path, moving_image_path, output_path, self.class_names[self.class_name])
-        else:
-            fixed_seg_path = mesh_file_names[2].name
-            moving_seg_path = mesh_file_names[3].name
-            
-            run_model(fixed_image_path, moving_image_path, fixed_seg_path, moving_seg_path, output_path, self.class_names[self.class_name])
+        # reset - to avoid using these segmentations again for new images
+        self.fixed_seg_path = None
+        self.moving_seg_path = None
 
-        self.fixed_images = load_ct_to_numpy(fixed_image_path)
-        self.moving_images = load_ct_to_numpy(moving_image_path)
+        self.fixed_images = load_ct_to_numpy(self.fixed_image_path)
+        self.moving_images = load_ct_to_numpy(self.moving_image_path)
         self.pred_images = load_ct_to_numpy(output_path + "pred_image.nii.gz")
+
         return None
 
     def get_fixed_image(self, k):
@@ -100,41 +116,47 @@ class WebUI:
 
     def run(self):
         css = """
-        #model-2d-fixed {
-        height: 512px;
-        margin: auto;
-        }
-        #model-2d-moving {
-        height: 512px;
-        margin: auto;
-        }
-        #model-2d-pred {
+        #model-2d {
         height: 512px;
         margin: auto;
         }
         #upload {
-        height: 120px;
+        height: 80px;
         }
         """
         with gr.Blocks(css=css) as demo:
             with gr.Row():
-                file_output = gr.File(file_count="multiple", elem_id="upload")
-                file_output.upload(self.upload_file, file_output, file_output)
+                
+                with gr.Column():
+                    file_fixed = gr.File(file_count="single", elem_id="upload", label="Select Fixed Image", show_label=True)
+                    file_fixed.upload(self.update_fixed, file_fixed, file_fixed)
 
-                model_selector = gr.Dropdown(
-                    list(self.class_names.keys()),
-                    label="Task",
-                    info="Which task to perform image-to-registration on",
-                    multiselect=False,
-                    size="sm",
-                )
-                model_selector.input(
-                    fn=lambda x: self.set_class_name(x),
-                    inputs=model_selector,
-                    outputs=None,
-                )
+                    file_moving = gr.File(file_count="single", elem_id="upload", label="Select Moving Image", show_label=True)
+                    file_moving.upload(self.update_moving, file_moving, file_moving)
 
-                self.run_btn.render()
+                #with gr.Group():
+                with gr.Column():
+                    file_fixed_seg = gr.File(file_count="single", elem_id="upload", label="Select Fixed Seg Image", show_label=True)
+                    file_fixed_seg.upload(self.update_fixed_seg, file_fixed_seg, file_fixed_seg)
+
+                    file_moving_seg = gr.File(file_count="single", elem_id="upload", label="Select Moving Seg Image", show_label=True)
+                    file_moving_seg.upload(self.update_moving_seg, file_moving_seg, file_moving_seg)
+
+                with gr.Column():
+                    model_selector = gr.Dropdown(
+                        list(self.class_names.keys()),
+                        label="Task",
+                        info="Which task to perform image-to-registration on",
+                        multiselect=False,
+                        size="sm",
+                    )
+                    model_selector.input(
+                        fn=lambda x: self.set_class_name(x),
+                        inputs=model_selector,
+                        outputs=None,
+                    )
+
+                    self.run_btn.render()
 
             """
             with gr.Row():
@@ -159,7 +181,7 @@ class WebUI:
                             for i in range(self.nb_slider_items):
                                 visibility = True if i == 1 else False
                                 t = gr.Image(
-                                    visible=visibility, elem_id="model-2d-fixed", label="fixed image", show_label=True,
+                                    visible=visibility, elem_id="model-2d", label="fixed image", show_label=True,
                                 ).style(
                                     height=512,
                                     width=512,
@@ -170,7 +192,7 @@ class WebUI:
                             for i in range(self.nb_slider_items):
                                 visibility = True if i == 1 else False
                                 t = gr.Image(
-                                    visible=visibility, elem_id="model-2d-moving", label="moving image", show_label=True,
+                                    visible=visibility, elem_id="model-2d", label="moving image", show_label=True,
                                 ).style(
                                     height=512,
                                     width=512,
@@ -181,7 +203,7 @@ class WebUI:
                             for i in range(self.nb_slider_items):
                                 visibility = True if i == 1 else False
                                 t = gr.Image(
-                                    visible=visibility, elem_id="model-2d-pred", label="predicted fixed image", show_label=True,
+                                    visible=visibility, elem_id="model-2d", label="predicted fixed image", show_label=True,
                                 ).style(
                                     height=512,
                                     width=512,
@@ -189,8 +211,8 @@ class WebUI:
                                 pred_images.append(t)
                             
                             self.run_btn.click(
-                                fn=lambda x: self.process(x),
-                                inputs=file_output,
+                                fn=self.process,
+                                inputs=None,
                                 outputs=None,
                             )
 
