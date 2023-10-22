@@ -1,7 +1,4 @@
-import os
-
 import gradio as gr
-import numpy as np
 
 from .compute import run_model
 from .utils import load_ct_to_numpy
@@ -52,11 +49,22 @@ class WebUI:
         return [f.name for f in files]
 
     def process(self, mesh_file_names):
+        if not (len(mesh_file_names) in [2, 4]):
+            raise ValueError("Unsupported number of elements were provided as input to the DDMR CLI."
+                             "Either provided 2 or 4 elements, where the two first being the fixed"
+                             "and moving CT/MRIs and the two other being the binary segmentation"
+                             "which will be used for ROI filtering in preprocessing.")
         fixed_image_path = mesh_file_names[0].name
         moving_image_path = mesh_file_names[1].name
         output_path = self.cwd
 
-        run_model(fixed_image_path, moving_image_path, output_path, self.class_names[self.class_name])
+        if len(mesh_file_names) == 2:
+            run_model(fixed_image_path, moving_image_path, output_path, self.class_names[self.class_name])
+        else:
+            fixed_seg_path = mesh_file_names[2].name
+            moving_seg_path = mesh_file_names[3].name
+            
+            run_model(fixed_image_path, moving_image_path, fixed_seg_path, moving_seg_path, output_path, self.class_names[self.class_name])
 
         self.fixed_images = load_ct_to_numpy(fixed_image_path)
         self.moving_images = load_ct_to_numpy(moving_image_path)
