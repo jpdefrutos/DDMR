@@ -3,10 +3,10 @@ import tensorflow.keras.backend as K
 import tensorflow as tf
 import neurite as ne
 
-import h5py
 from ddmr.utils.constants import IMG_SHAPE, DISP_MAP_SHAPE
 
 
+@tf.keras.utils.register_keras_serializable()
 class SpatialTransformer(kl.Layer):
     """
     Adapted SpatialTransformer layer taken from VoxelMorph v0.1
