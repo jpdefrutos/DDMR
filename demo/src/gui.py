@@ -1,7 +1,15 @@
+import logging
+import sys
+
 import gradio as gr
 
 from .compute import run_model
+from .logger import setup_logger, read_logs
 from .utils import load_ct_to_numpy
+
+
+# setup logging
+LOGGER = setup_logger()
 
 
 class WebUI:
@@ -27,6 +35,7 @@ class WebUI:
             "Brain": "B",
             "Liver": "L"
         }
+        self.class_name = "Brain"
 
         self.fixed_image_path = None
         self.moving_image_path = None
@@ -42,12 +51,12 @@ class WebUI:
             label="Which 2D slice to show",
         )
 
-        self.run_btn = gr.Button("Run analysis").style(
+        self.run_btn = gr.Button("Run analysis", show_progress="full", elem_id="button").style(
             full_width=False, size="lg"
         )
 
     def set_class_name(self, value):
-        print("Changed task to:", value)
+        LOGGER.info(f"Changed task to: {value}")
         self.class_name = value
 
     def upload_file(self, files):
@@ -85,7 +94,7 @@ class WebUI:
         self.moving_images = load_ct_to_numpy(self.moving_image_path)
         self.pred_images = load_ct_to_numpy(output_path + "pred_image.nii.gz")
 
-        return None
+        return self.pred_images[0]
 
     def get_fixed_image(self, k):
         k = int(k) - 1
@@ -121,7 +130,13 @@ class WebUI:
         margin: auto;
         }
         #upload {
-        height: 80px;
+        height: 120px;
+        }
+        #button {
+        height: 120px;
+        }
+        #dropdown {
+        height: 120px;
         }
         """
         with gr.Blocks(css=css) as demo:
@@ -149,6 +164,9 @@ class WebUI:
                         info="Which task to perform image-to-registration on",
                         multiselect=False,
                         size="sm",
+                        default="Brain",
+                        elem_id="dropdown",
+
                     )
                     model_selector.input(
                         fn=lambda x: self.set_class_name(x),
@@ -158,19 +176,8 @@ class WebUI:
 
                     self.run_btn.render()
 
-            """
-            with gr.Row():
-                gr.Examples(
-                    examples=[
-                        os.path.join(self.cwd, "ixi_image.nii.gz"),
-                        os.path.join(self.cwd, "ixi_image2.nii.gz"),
-                    ],
-                    inputs=file_output,
-                    outputs=file_output,
-                    fn=self.upload_file,
-                    cache_examples=True,
-                )
-            """
+                logs = gr.Textbox(label="Logs", info="Verbose from inference will be displayed below.", max_lines=8, autoscroll=True)
+                demo.load(read_logs, None, logs, every=1)
 
             with gr.Row():
                 with gr.Box():
@@ -201,6 +208,8 @@ class WebUI:
                             
                             pred_images = []
                             for i in range(self.nb_slider_items):
+                                if i == 0:
+                                    first_pred_component = t
                                 visibility = True if i == 1 else False
                                 t = gr.Image(
                                     visible=visibility, elem_id="model-2d", label="predicted fixed image", show_label=True,
@@ -213,7 +222,7 @@ class WebUI:
                             self.run_btn.click(
                                 fn=self.process,
                                 inputs=None,
-                                outputs=None,
+                                outputs=first_pred_component,
                             )
 
                         self.slider.input(
