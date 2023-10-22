@@ -2,7 +2,7 @@ import os
 import h5py
 import numpy as np
 from tqdm import tqdm
-import DeepDeformationMapRegistration.utils.constants as C
+import ddmr.utils.constants as C
 
 
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'

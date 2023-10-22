@@ -1,8 +1,8 @@
-from DeepDeformationMapRegistration.utils.nifti_utils import save_nifti
+from ddmr.utils.nifti_utils import save_nifti
 from tqdm import tqdm
 import os
 import h5py
-import DeepDeformationMapRegistration.utils.constants as C
+import ddmr.utils.constants as C
 
 DATASET_LOCATION = '/mnt/EncryptedData1/Users/javier/vessel_registration/3Dirca/dataset/EVAL'
 DATASET_NAMES = ['Affine', 'None', 'Translation']

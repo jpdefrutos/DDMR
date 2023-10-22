@@ -2,9 +2,9 @@ import os
 import requests
 from datetime import datetime
 from email.utils import parsedate_to_datetime, formatdate
-from DeepDeformationMapRegistration.utils.constants import ANATOMIES, MODEL_TYPES, ENCODER_FILTERS, DECODER_FILTERS, IMG_SHAPE
+from ddmr.utils.constants import ANATOMIES, MODEL_TYPES, ENCODER_FILTERS, DECODER_FILTERS, IMG_SHAPE
 import voxelmorph as vxm
-from DeepDeformationMapRegistration.utils.logger import LOGGER
+from ddmr.utils.logger import LOGGER
 
 
 # taken from: https://lenon.dev/blog/downloading-and-caching-large-files-using-python/

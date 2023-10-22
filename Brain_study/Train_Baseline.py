@@ -19,13 +19,13 @@ import neurite as ne
 import h5py
 import pickle
 
-import DeepDeformationMapRegistration.utils.constants as C
-from DeepDeformationMapRegistration.losses import NCC, StructuralSimilarity, StructuralSimilarity_simplified
-from DeepDeformationMapRegistration.utils.misc import try_mkdir, DatasetCopy, function_decorator
-from DeepDeformationMapRegistration.utils.acummulated_optimizer import AdamAccumulated
-from DeepDeformationMapRegistration.layers import AugmentationLayer
-from DeepDeformationMapRegistration.utils.nifti_utils import save_nifti
-from DeepDeformationMapRegistration.ms_ssim_tf import MultiScaleStructuralSimilarity, _MSSSIM_WEIGHTS
+import ddmr.utils.constants as C
+from ddmr.losses import NCC, StructuralSimilarity, StructuralSimilarity_simplified
+from ddmr.utils.misc import try_mkdir, DatasetCopy, function_decorator
+from ddmr.utils.acummulated_optimizer import AdamAccumulated
+from ddmr.layers import AugmentationLayer
+from ddmr.utils.nifti_utils import save_nifti
+from ddmr.ms_ssim_tf import MultiScaleStructuralSimilarity, _MSSSIM_WEIGHTS
 
 from Brain_study.data_generator import BatchGenerator
 from Brain_study.utils import SummaryDictionary, named_logs

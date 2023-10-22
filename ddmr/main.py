@@ -14,13 +14,13 @@ from scipy.ndimage import gaussian_filter, zoom
 from skimage.measure import regionprops
 import SimpleITK as sitk
 
-from DeepDeformationMapRegistration.layers.SpatialTransformer import SpatialTransformer
-import DeepDeformationMapRegistration.utils.constants as C
-from DeepDeformationMapRegistration.utils.nifti_utils import save_nifti
-from DeepDeformationMapRegistration.utils.operators import min_max_norm
-from DeepDeformationMapRegistration.utils.misc import resize_displacement_map
-from DeepDeformationMapRegistration.utils.model_utils import get_models_path, load_model, get_spatialtransformer_model
-from DeepDeformationMapRegistration.utils.logger import LOGGER
+import ddmr.utils.constants as C
+from ddmr.utils.nifti_utils import save_nifti
+from ddmr.layers.SpatialTransformer import SpatialTransformer
+from ddmr.utils.operators import min_max_norm
+from ddmr.utils.misc import resize_displacement_map
+from ddmr.utils.model_utils import get_models_path, load_model, get_spatialtransformer_model
+from ddmr.utils.logger import LOGGER
 
 from importlib.util import find_spec
 
@@ -282,8 +282,7 @@ def main():
     ST_MODEL_FILE = get_spatialtransformer_model()
 
     network, registration_model = load_model(MODEL_FILE, False, True)
-    spatialtransformer_model = tf.keras.models.load_model(ST_MODEL_FILE,
-                                                          custom_objects={'SpatialTransformer': SpatialTransformer})
+    spatialtransformer_model = tf.keras.models.load_model(ST_MODEL_FILE, custom_objects={'SpatialTransformer': SpatialTransformer})
 
     LOGGER.info('Computing registration')
     with sess.as_default():

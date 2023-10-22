@@ -12,10 +12,10 @@ from skimage.exposure import equalize_adapthist
 from scipy.ndimage import zoom
 import tensorflow as tf
 
-import DeepDeformationMapRegistration.utils.constants as C
-from DeepDeformationMapRegistration.utils.operators import min_max_norm
-from DeepDeformationMapRegistration.utils.misc import segmentation_cardinal_to_ohe
-from DeepDeformationMapRegistration.utils.thin_plate_splines import ThinPlateSplines
+import ddmr.utils.constants as C
+from ddmr.utils.operators import min_max_norm
+from ddmr.utils.misc import segmentation_cardinal_to_ohe
+from ddmr.utils.thin_plate_splines import ThinPlateSplines
 from voxelmorph.tf.layers import SpatialTransformer
 from Brain_study.format_dataset import SEGMENTATION_NR2LBL_LUT, SEGMENTATION_LBL2NR_LUT
 

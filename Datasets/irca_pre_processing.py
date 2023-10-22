@@ -9,8 +9,8 @@ import zipfile
 import re
 import dicom2nifti as d2n
 import nibabel as nib
-from DeepDeformationMapRegistration.utils.nifti_utils import save_nifti
-from DeepDeformationMapRegistration.utils.misc import try_mkdir
+from ddmr.utils.nifti_utils import save_nifti
+from ddmr.utils.misc import try_mkdir
 from tqdm import tqdm
 import shutil
 

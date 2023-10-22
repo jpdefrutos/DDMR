@@ -10,9 +10,9 @@ from skimage.exposure import equalize_adapthist
 from scipy.ndimage import zoom
 import tensorflow as tf
 
-import DeepDeformationMapRegistration.utils.constants as C
-from DeepDeformationMapRegistration.utils.operators import min_max_norm
-from DeepDeformationMapRegistration.utils.thin_plate_splines import ThinPlateSplines
+import ddmr.utils.constants as C
+from ddmr.utils.operators import min_max_norm
+from ddmr.utils.thin_plate_splines import ThinPlateSplines
 from voxelmorph.tf.layers import SpatialTransformer
 
 

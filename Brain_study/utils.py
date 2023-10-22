@@ -1,5 +1,5 @@
 import numpy as np
-import DeepDeformationMapRegistration.utils.constants as C
+import ddmr.utils.constants as C
 
 class SummaryDictionary:
     def __init__(self, model, batch_size, accumulative_gradients_step=None):

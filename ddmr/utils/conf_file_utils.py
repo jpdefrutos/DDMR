@@ -1,4 +1,4 @@
-import DeepDeformationMapRegistration.utils.constants as C
+import ddmr.utils.constants as C
 import re
 import os
 

@@ -4,7 +4,7 @@ import tensorflow as tf
 import neurite as ne
 
 import h5py
-from DeepDeformationMapRegistration.utils.constants import IMG_SHAPE, DISP_MAP_SHAPE
+from ddmr.utils.constants import IMG_SHAPE, DISP_MAP_SHAPE
 
 
 class SpatialTransformer(kl.Layer):

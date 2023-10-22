@@ -14,14 +14,14 @@ from tensorflow.keras import Input
 from tensorflow.keras.models import Model
 from tensorflow.python.framework.errors import InvalidArgumentError
 
-import DeepDeformationMapRegistration.utils.constants as C
-from DeepDeformationMapRegistration.losses import StructuralSimilarity_simplified, NCC, GeneralizedDICEScore, HausdorffDistanceErosion
-from DeepDeformationMapRegistration.ms_ssim_tf import MultiScaleStructuralSimilarity
-from DeepDeformationMapRegistration.ms_ssim_tf import _MSSSIM_WEIGHTS
-from DeepDeformationMapRegistration.utils.acummulated_optimizer import AdamAccumulated
-from DeepDeformationMapRegistration.utils.misc import function_decorator
-from DeepDeformationMapRegistration.layers import AugmentationLayer
-from DeepDeformationMapRegistration.utils.nifti_utils import save_nifti
+import ddmr.utils.constants as C
+from ddmr.losses import StructuralSimilarity_simplified, NCC, GeneralizedDICEScore, HausdorffDistanceErosion
+from ddmr.ms_ssim_tf import MultiScaleStructuralSimilarity
+from ddmr.ms_ssim_tf import _MSSSIM_WEIGHTS
+from ddmr.utils.acummulated_optimizer import AdamAccumulated
+from ddmr.utils.misc import function_decorator
+from ddmr.layers import AugmentationLayer
+from ddmr.utils.nifti_utils import save_nifti
 
 from Brain_study.data_generator import BatchGenerator
 from Brain_study.utils import SummaryDictionary, named_logs

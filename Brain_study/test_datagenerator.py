@@ -1,6 +1,6 @@
 from Brain_study.data_generator import BatchGenerator
 
-import DeepDeformationMapRegistration.utils.constants as C
+import ddmr.utils.constants as C
 from tqdm import tqdm
 
 from tensorflow import keras
@@ -8,8 +8,8 @@ import tensorflow as tf
 from tensorflow.keras.callbacks import TensorBoard
 import os
 import voxelmorph as vxm
-from DeepDeformationMapRegistration.utils.acummulated_optimizer import AdamAccumulated
-from DeepDeformationMapRegistration.losses import NCC, StructuralSimilarity, StructuralSimilarity_simplified
+from ddmr.utils.acummulated_optimizer import AdamAccumulated
+from ddmr.losses import NCC, StructuralSimilarity, StructuralSimilarity_simplified
 
 
 def named_logs(model, logs, validation=False):

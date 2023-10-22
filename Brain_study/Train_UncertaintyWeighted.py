@@ -16,13 +16,13 @@ import h5py
 from datetime import datetime
 import pickle
 
-import DeepDeformationMapRegistration.utils.constants as C
-from DeepDeformationMapRegistration.utils.misc import try_mkdir, DatasetCopy, function_decorator
-from DeepDeformationMapRegistration.networks import WeaklySupervised
-from DeepDeformationMapRegistration.losses import HausdorffDistanceErosion, NCC, StructuralSimilarity_simplified, GeneralizedDICEScore
-from DeepDeformationMapRegistration.ms_ssim_tf import MultiScaleStructuralSimilarity, _MSSSIM_WEIGHTS
-from DeepDeformationMapRegistration.layers import UncertaintyWeighting, AugmentationLayer
-from DeepDeformationMapRegistration.utils.acummulated_optimizer import AdamAccumulated
+import ddmr.utils.constants as C
+from ddmr.utils.misc import try_mkdir, DatasetCopy, function_decorator
+from ddmr.networks import WeaklySupervised
+from ddmr.losses import HausdorffDistanceErosion, NCC, StructuralSimilarity_simplified, GeneralizedDICEScore
+from ddmr.ms_ssim_tf import MultiScaleStructuralSimilarity, _MSSSIM_WEIGHTS
+from ddmr.layers import UncertaintyWeighting, AugmentationLayer
+from ddmr.utils.acummulated_optimizer import AdamAccumulated
 
 from Brain_study.data_generator import BatchGenerator
 from Brain_study.utils import SummaryDictionary, named_logs

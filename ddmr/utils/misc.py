@@ -4,8 +4,8 @@ import shutil
 import numpy as np
 from scipy.interpolate import griddata, Rbf, LinearNDInterpolator, NearestNDInterpolator
 from skimage.measure import regionprops
-from DeepDeformationMapRegistration.layers.b_splines import interpolate_spline
-from DeepDeformationMapRegistration.utils.thin_plate_splines import ThinPlateSplines
+from ddmr.layers.b_splines import interpolate_spline
+from ddmr.utils.thin_plate_splines import ThinPlateSplines
 from tensorflow import squeeze
 from scipy.ndimage import zoom
 import tensorflow as tf

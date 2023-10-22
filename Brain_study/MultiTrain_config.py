@@ -7,7 +7,7 @@ import argparse
 from configparser import ConfigParser
 from datetime import datetime
 
-import DeepDeformationMapRegistration.utils.constants as C
+import ddmr.utils.constants as C
 
 TRAIN_DATASET = '/mnt/EncryptedData1/Users/javier/ext_datasets/IXI_dataset/T1/training'
 

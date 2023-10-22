@@ -16,14 +16,14 @@ import numpy as np
 import pandas as pd
 import voxelmorph as vxm
 
-import DeepDeformationMapRegistration.utils.constants as C
-from DeepDeformationMapRegistration.utils.nifti_utils import save_nifti
-from DeepDeformationMapRegistration.layers import AugmentationLayer
-from DeepDeformationMapRegistration.losses import StructuralSimilarity_simplified, NCC, GeneralizedDICEScore, HausdorffDistanceErosion
-from DeepDeformationMapRegistration.ms_ssim_tf import MultiScaleStructuralSimilarity
-from DeepDeformationMapRegistration.utils.acummulated_optimizer import AdamAccumulated
-from DeepDeformationMapRegistration.utils.visualization import save_disp_map_img, plot_predictions
-from DeepDeformationMapRegistration.utils.misc import segmentation_ohe_to_cardinal
+import ddmr.utils.constants as C
+from ddmr.utils.nifti_utils import save_nifti
+from ddmr.layers import AugmentationLayer
+from ddmr.losses import StructuralSimilarity_simplified, NCC, GeneralizedDICEScore, HausdorffDistanceErosion
+from ddmr.ms_ssim_tf import MultiScaleStructuralSimilarity
+from ddmr.utils.acummulated_optimizer import AdamAccumulated
+from ddmr.utils.visualization import save_disp_map_img, plot_predictions
+from ddmr.utils.misc import segmentation_ohe_to_cardinal
 from EvaluationScripts.Evaluate_class import EvaluationFigures, resize_pts_to_original_space, resize_img_to_original_space, resize_transformation
 from scipy.interpolate import RegularGridInterpolator
 from tqdm import tqdm

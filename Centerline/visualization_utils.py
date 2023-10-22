@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 from matplotlib.lines import Line2D
 import numpy as np
-from DeepDeformationMapRegistration.utils.visualization import add_axes_arrows_3d, remove_tick_labels, set_axes_size
+from ddmr.utils.visualization import add_axes_arrows_3d, remove_tick_labels, set_axes_size
 import os
 
 

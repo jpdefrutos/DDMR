@@ -10,9 +10,9 @@ import tensorflow.keras.layers as kl
 import tensorflow as tf
 from tensorflow.python.framework.errors import InvalidArgumentError
 
-from DeepDeformationMapRegistration.utils.operators import soft_threshold, gaussian_kernel, sample_unique
-import DeepDeformationMapRegistration.utils.constants as C
-from DeepDeformationMapRegistration.utils.thin_plate_splines import ThinPlateSplines
+from ddmr.utils.operators import soft_threshold, gaussian_kernel, sample_unique
+import ddmr.utils.constants as C
+from ddmr.utils.thin_plate_splines import ThinPlateSplines
 from voxelmorph.tf.layers import SpatialTransformer
 
 

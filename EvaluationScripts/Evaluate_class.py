@@ -6,8 +6,8 @@ from medpy.metric.binary import dc, hd95
 import numpy as np
 import pandas as pd
 import os
-from DeepDeformationMapRegistration.utils.constants import EPS
-from DeepDeformationMapRegistration.utils.nifti_utils import save_nifti
+from ddmr.utils.constants import EPS
+from ddmr.utils.nifti_utils import save_nifti
 from skimage.transform import resize
 from skimage.measure import regionprops, label
 

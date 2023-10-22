@@ -3,9 +3,9 @@ import tensorflow.keras.backend as K
 from scipy.ndimage import generate_binary_structure
 from sklearn.utils.extmath import cartesian
 
-from DeepDeformationMapRegistration.utils.operators import soft_threshold, min_max_norm, hard_threshold
-from DeepDeformationMapRegistration.utils.constants import EPS_tf
-from DeepDeformationMapRegistration.utils.misc import function_decorator
+from ddmr.utils.operators import soft_threshold, min_max_norm, hard_threshold
+from ddmr.utils.constants import EPS_tf
+from ddmr.utils.misc import function_decorator
 
 import numpy as np
 import warnings
