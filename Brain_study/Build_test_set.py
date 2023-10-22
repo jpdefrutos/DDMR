@@ -14,11 +14,11 @@ import tensorflow as tf
 import numpy as np
 import h5py
 
-import DeepDeformationMapRegistration.utils.constants as C
-from DeepDeformationMapRegistration.utils.nifti_utils import save_nifti
-from DeepDeformationMapRegistration.layers import AugmentationLayer
-from DeepDeformationMapRegistration.utils.visualization import save_disp_map_img, plot_predictions
-from DeepDeformationMapRegistration.utils.misc import get_segmentations_centroids, DisplacementMapInterpolator
+import ddmr.utils.constants as C
+from ddmr.utils.nifti_utils import save_nifti
+from ddmr.layers import AugmentationLayer
+from ddmr.utils.visualization import save_disp_map_img, plot_predictions
+from ddmr.utils.misc import get_segmentations_centroids, DisplacementMapInterpolator
 
 from tqdm import tqdm
 

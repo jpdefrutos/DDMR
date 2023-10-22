@@ -29,8 +29,8 @@ from Centerline.graph_utils import graph_to_ndarray, deform_graph, get_bifurcati
 from Centerline.skeleton_to_graph import get_graph_from_skeleton
 from Centerline.visualization_utils import plot_skeleton, compare_graphs
 
-from DeepDeformationMapRegistration.utils.operators import min_max_norm
-from DeepDeformationMapRegistration.utils import constants as C
+from ddmr.utils.operators import min_max_norm
+from ddmr.utils import constants as C
 
 import cupy
 from cupyx.scipy.ndimage import zoom as zoom_gpu
@@ -39,7 +39,7 @@ from cupyx.scipy.ndimage import map_coordinates
 DATASET_LOCATION = '/mnt/EncryptedData1/Users/javier/vessel_registration/3Dirca/dataset/EVAL'
 DATASET_NAMES = ['Affine', 'None', 'Translation']
 DATASET_FILENAME = 'volume'
-IMGS_FOLDER = '/home/jpdefrutos/workspace/DeepDeformationMapRegistration/Centerline/centerlines'
+IMGS_FOLDER = '/home/jpdefrutos/workspace/ddmr/Centerline/centerlines'
 
 DATASTE_RAW_FILES = '/mnt/EncryptedData1/Users/javier/vessel_registration/3Dirca/nifti3'
 LITS_SEGMENTATION_FILE = 'segmentation'

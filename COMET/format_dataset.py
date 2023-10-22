@@ -16,8 +16,8 @@ from scipy.ndimage.morphology import binary_dilation, generate_binary_structure
 
 import pandas as pd
 
-from DeepDeformationMapRegistration.utils import constants as C
-from DeepDeformationMapRegistration.utils.misc import segmentation_cardinal_to_ohe, segmentation_ohe_to_cardinal
+from ddmr.utils import constants as C
+from ddmr.utils.misc import segmentation_cardinal_to_ohe, segmentation_ohe_to_cardinal
 
 SEGMENTATION_NR2LBL_LUT = {0: 'background',
                            1: 'parenchyma',

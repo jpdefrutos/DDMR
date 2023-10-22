@@ -12,12 +12,12 @@ currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
 sys.path.append(parentdir)  # PYTHON > 3.3 does not allow relative referencing
 
-from DeepDeformationMapRegistration.losses import StructuralSimilarity_simplified, NCC, GeneralizedDICEScore, HausdorffDistanceErosion, target_registration_error
-from DeepDeformationMapRegistration.ms_ssim_tf import MultiScaleStructuralSimilarity
-from DeepDeformationMapRegistration.utils.misc import DisplacementMapInterpolator, segmentation_ohe_to_cardinal
-from DeepDeformationMapRegistration.utils.nifti_utils import save_nifti
-from DeepDeformationMapRegistration.utils.visualization import save_disp_map_img, plot_predictions
-import DeepDeformationMapRegistration.utils.constants as C
+from ddmr.losses import StructuralSimilarity_simplified, NCC, GeneralizedDICEScore, HausdorffDistanceErosion, target_registration_error
+from ddmr.ms_ssim_tf import MultiScaleStructuralSimilarity
+from ddmr.utils.misc import DisplacementMapInterpolator, segmentation_ohe_to_cardinal
+from ddmr.utils.nifti_utils import save_nifti
+from ddmr.utils.visualization import save_disp_map_img, plot_predictions
+import ddmr.utils.constants as C
 import shutil
 import medpy.metric as medpy_metrics
 
@@ -30,7 +30,7 @@ import tensorflow as tf
 DATASET_LOCATION = '/mnt/EncryptedData1/Users/javier/vessel_registration/3Dirca/dataset/EVAL'
 DATASET_NAMES = 'test_sample_\d{4}.h5'
 DATASET_FILENAME = 'volume'
-IMGS_FOLDER = '/home/jpdefrutos/workspace/DeepDeformationMapRegistration/Centerline/imgs'
+IMGS_FOLDER = '/home/jpdefrutos/workspace/ddmr/Centerline/imgs'
 
 WARPED_MOV = 'warpedmovout'
 WARPED_FIX = 'warpedfixout'

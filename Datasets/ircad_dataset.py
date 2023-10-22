@@ -26,8 +26,8 @@ import re
 currentdir = os.path.dirname(os.path.realpath(__file__))
 parentdir = os.path.dirname(currentdir)
 sys.path.append(parentdir)  # PYTHON > 3.3 does not allow relative referencing
-from DeepDeformationMapRegistration.utils.cmd_args_parser import parse_arguments
-import DeepDeformationMapRegistration.utils.constants as const
+from ddmr.utils.cmd_args_parser import parse_arguments
+import ddmr.utils.constants as const
 from tools.thinPlateSplines_tf import ThinPlateSplines
 from keras_model.ext.neuron.layers import SpatialTransformer
 from tools.voxelMorph import interpn

@@ -11,7 +11,7 @@ import tensorflow.keras.backend as K
 import tensorflow as tf
 import numpy as np
 
-from DeepDeformationMapRegistration.utils.operators import soft_threshold
+from ddmr.utils.operators import soft_threshold
 
 
 class UncertaintyWeighting(kl.Layer):

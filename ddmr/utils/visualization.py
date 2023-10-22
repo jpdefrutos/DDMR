@@ -8,7 +8,7 @@ from matplotlib import cm
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 import tensorflow as tf
 import numpy as np
-import DeepDeformationMapRegistration.utils.constants as C
+import ddmr.utils.constants as C
 from skimage.exposure import rescale_intensity
 import scipy.misc as scpmisc
 import os

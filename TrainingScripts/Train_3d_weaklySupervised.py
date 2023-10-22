@@ -13,12 +13,12 @@ import neurite as ne
 import h5py
 from datetime import datetime
 
-import DeepDeformationMapRegistration.utils.constants as C
-from DeepDeformationMapRegistration.data_generator import DataGeneratorManager
-from DeepDeformationMapRegistration.utils.misc import try_mkdir
-from DeepDeformationMapRegistration.networks import WeaklySupervised
-from DeepDeformationMapRegistration.losses import HausdorffDistanceErosion
-from DeepDeformationMapRegistration.layers import UncertaintyWeighting
+import ddmr.utils.constants as C
+from ddmr.data_generator import DataGeneratorManager
+from ddmr.utils.misc import try_mkdir
+from ddmr.networks import WeaklySupervised
+from ddmr.losses import HausdorffDistanceErosion
+from ddmr.layers import UncertaintyWeighting
 
 
 os.environ['CUDA_DEVICE_ORDER'] = C.DEV_ORDER

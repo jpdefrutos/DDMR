@@ -10,7 +10,7 @@ from matplotlib import cm
 from matplotlib.colors import ListedColormap, LinearSegmentedColormap, to_rgba, CSS4_COLORS
 import tikzplotlib
 
-from DeepDeformationMapRegistration.utils.misc import segmentation_ohe_to_cardinal
+from ddmr.utils.misc import segmentation_ohe_to_cardinal
 
 # segm_cm = np.asarray([to_rgba(CSS4_COLORS[c], 1) for c in CSS4_COLORS.keys()])
 # # segm_cm.sort()

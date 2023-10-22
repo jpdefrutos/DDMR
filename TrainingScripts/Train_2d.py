@@ -11,10 +11,10 @@ from tensorflow.keras.callbacks import ModelCheckpoint, TensorBoard, EarlyStoppi
 import voxelmorph as vxm
 from datetime import datetime
 
-import DeepDeformationMapRegistration.utils.constants as C
-from DeepDeformationMapRegistration.data_generator import DataGeneratorManager2D
-from DeepDeformationMapRegistration.utils.misc import try_mkdir
-from DeepDeformationMapRegistration.losses import HausdorffDistanceErosion
+import ddmr.utils.constants as C
+from ddmr.data_generator import DataGeneratorManager2D
+from ddmr.utils.misc import try_mkdir
+from ddmr.losses import HausdorffDistanceErosion
 
 
 os.environ['CUDA_DEVICE_ORDER'] = C.DEV_ORDER

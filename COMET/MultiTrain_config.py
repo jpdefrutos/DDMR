@@ -8,7 +8,7 @@ from configparser import ConfigParser
 from shutil import copy2
 import os
 from datetime import datetime
-import DeepDeformationMapRegistration.utils.constants as C
+import ddmr.utils.constants as C
 import re
 from COMET.augmentation_constants import LAYER_SELECTION
 TRAIN_DATASET = '/mnt/EncryptedData1/Users/javier/ext_datasets/COMET_dataset/OSLO_COMET_CT/Formatted_128x128x128/train'

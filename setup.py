@@ -8,9 +8,9 @@ with open("requirements.txt", "r") as f:
     reqs = [line.strip('\n') for line in f.readlines()]
 
 setup(
-    name='DeepDeformationMapRegistration',
-    py_modules=['DeepDeformationMapRegistration'],
-    packages=find_packages(include=['DeepDeformationMapRegistration', 'DeepDeformationMapRegistration.*'],
+    name='ddmr',
+    py_modules=['ddmr'],
+    packages=find_packages(include=['ddmr', 'ddmr.*'],
                            exclude=['test_images', 'test_images.*']),
     version='1.0',
     description='Deep-registration training toolkit',
@@ -37,6 +37,6 @@ setup(
         'h5py'
     ],
     entry_points={
-        'console_scripts': ['ddmr=DeepDeformationMapRegistration.main:main']
+        'console_scripts': ['ddmr=ddmr.main:main']
     }
 )

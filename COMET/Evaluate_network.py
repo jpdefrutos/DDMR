@@ -19,16 +19,16 @@ import pandas as pd
 import voxelmorph as vxm
 from voxelmorph.tf.layers import SpatialTransformer
 
-import DeepDeformationMapRegistration.utils.constants as C
-from DeepDeformationMapRegistration.utils.operators import min_max_norm, safe_medpy_metric
-from DeepDeformationMapRegistration.utils.nifti_utils import save_nifti
-from DeepDeformationMapRegistration.layers import AugmentationLayer, UncertaintyWeighting
-from DeepDeformationMapRegistration.losses import StructuralSimilarity_simplified, NCC, GeneralizedDICEScore, HausdorffDistanceErosion, target_registration_error
-from DeepDeformationMapRegistration.ms_ssim_tf import MultiScaleStructuralSimilarity
-from DeepDeformationMapRegistration.utils.acummulated_optimizer import AdamAccumulated
-from DeepDeformationMapRegistration.utils.visualization import save_disp_map_img, plot_predictions
-from DeepDeformationMapRegistration.utils.misc import DisplacementMapInterpolator, get_segmentations_centroids, segmentation_ohe_to_cardinal, segmentation_cardinal_to_ohe
-from DeepDeformationMapRegistration.utils.misc import resize_displacement_map, scale_transformation, GaussianFilter
+import ddmr.utils.constants as C
+from ddmr.utils.operators import min_max_norm, safe_medpy_metric
+from ddmr.utils.nifti_utils import save_nifti
+from ddmr.layers import AugmentationLayer, UncertaintyWeighting
+from ddmr.losses import StructuralSimilarity_simplified, NCC, GeneralizedDICEScore, HausdorffDistanceErosion, target_registration_error
+from ddmr.ms_ssim_tf import MultiScaleStructuralSimilarity
+from ddmr.utils.acummulated_optimizer import AdamAccumulated
+from ddmr.utils.visualization import save_disp_map_img, plot_predictions
+from ddmr.utils.misc import DisplacementMapInterpolator, get_segmentations_centroids, segmentation_ohe_to_cardinal, segmentation_cardinal_to_ohe
+from ddmr.utils.misc import resize_displacement_map, scale_transformation, GaussianFilter
 import medpy.metric as medpy_metrics
 from EvaluationScripts.Evaluate_class import EvaluationFigures, resize_pts_to_original_space, resize_img_to_original_space, resize_transformation
 from scipy.interpolate import RegularGridInterpolator

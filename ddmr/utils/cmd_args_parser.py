@@ -1,5 +1,5 @@
 import sys, getopt
-import DeepDeformationMapRegistration.utils.constants as C
+import ddmr.utils.constants as C
 import os
 
 

@@ -9,7 +9,7 @@ from tensorflow.python.ops import control_flow_ops
 from tensorflow.python.ops import nn
 from tensorflow.python.util.tf_export import tf_export
 from tensorflow.python.util import dispatch
-from DeepDeformationMapRegistration.utils.misc import function_decorator
+from ddmr.utils.misc import function_decorator
 
 
 @tf_export('image.convert_image_dtype')
@@ -606,7 +606,7 @@ if __name__ == '__main__':
     tf.enable_eager_execution()
     import nibabel as nib
     import numpy as np
-    from DeepDeformationMapRegistration.utils.operators import min_max_norm
+    from ddmr.utils.operators import min_max_norm
     from skimage.metrics import structural_similarity
 
     img1 = nib.load('test_images/ixi_image.nii.gz')
