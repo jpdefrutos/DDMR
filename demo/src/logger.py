@@ -2,6 +2,10 @@ import logging
 import sys
 
 
+def get_logger():
+    logging.getLogger(__name__)
+
+
 def setup_logger():
     # clear log
     file_to_delete = open("log.log",'w')
@@ -17,7 +21,7 @@ def setup_logger():
         handlers=handlers,
     )
 
-    return logging.getLogger(__name__)
+    return get_logger()
 
 
 def read_logs():

@@ -1,6 +1,3 @@
-import logging
-import sys
-
 import gradio as gr
 
 from .compute import run_model
