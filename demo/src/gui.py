@@ -53,7 +53,7 @@ class WebUI:
         )
 
     def set_class_name(self, value):
-        LOGGER.info(f"Changed task to: {value}")
+        # LOGGER.info(f"Changed task to: {value}")
         self.class_name = value
 
     def upload_file(self, files):
