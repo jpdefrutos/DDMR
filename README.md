@@ -67,7 +67,7 @@ A live demo to easily test the best performing pretrained models was developed i
 
 To access the live demo, click on the `Hugging Face` badge above. Below is a snapshot of the current state of the demo app.
 
-<img width="1794" alt="Screenshot 2023-10-21 at 21 49 17" src="https://github.com/jpdefrutos/DDMR/assets/29090665/8d16160b-416d-40ed-a7d6-619c7360c696">
+<img width="1800" alt="Screenshot 2023-10-22 at 14 42 49" src="https://github.com/jpdefrutos/DDMR/assets/29090665/ceb8797d-1a06-4929-994c-0838e1261e32">
 
 <details>
 <summary>
